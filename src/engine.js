@@ -1,14 +1,29 @@
+import { FONT_LIBRARY } from './fonts.js';
 /* All manufacturing geometry is expressed in millimetres. No DOM dependencies. */
-export const DEFAULTS = Object.freeze({ height: 19, width: 8, depth: 7, ease: 0.5, thickness: 0.3, margin: 6, theme: 'botanico', description: '', lid: 'tuck', color: '#697e63', folds: true, window: false, windows: ['front'], windowBorder: 1.2, ink: false });
+export const DEFAULTS = Object.freeze({ height: 19, width: 8, depth: 7, ease: 0.5, thickness: 0.3, margin: 6, theme: 'botanico', description: '', lid: 'tuck', mainColor: '#f5f1e5', detailColor: '#6c8267', folds: true, window: false, windows: ['front'], windowBorder: 1.2, ink: false, textEnabled:false, texts:{front:'',back:'',left:'',right:''},textFont:'classic',textSize:16,textPosition:'bottom' });
+export const FACES = Object.freeze([{id:'front',name:'Frente'},{id:'back',name:'Verso'},{id:'left',name:'Lateral esquerda'},{id:'right',name:'Lateral direita'}]);
+export const TEXT_FONTS = Object.freeze(FONT_LIBRARY.map(({id,name})=>({id,name})));
 export const THEMES = Object.freeze([
   { id: 'botanico', name: 'Jardim delicado', short: 'Jardim', bg: '#f5f1e5', ink: '#6c8267', accent: '#c99579', motif: 'flower', keywords: ['flor', 'jardim', 'botanic', 'planta', 'verde', 'natureza'] },
-  { id: 'bosque', name: 'Amigos do bosque', short: 'Bosque', bg: '#f4eade', ink: '#8c735d', accent: '#b6b997', motif: 'bunny', keywords: ['coelh', 'pascoa', 'bosque', 'urso', 'floresta'] },
+  { id: 'bosque', name: 'Amigos do bosque', short: 'Bosque', bg: '#f4eade', ink: '#8c735d', accent: '#b6b997', motif: 'bunny', keywords: ['coelh', 'pascoa', 'bosque', 'floresta'] },
   { id: 'safari', name: 'Pequeno safari', short: 'Safari', bg: '#f8efd9', ink: '#af8451', accent: '#78906b', motif: 'lion', keywords: ['safari', 'leao', 'selva', 'girafa', 'animal'] },
-  { id: 'ceu', name: 'Um céu de sonhos', short: 'Céu', bg: '#edf1f5', ink: '#7b8ea5', accent: '#d1b77f', motif: 'moon', keywords: ['ceu', 'lua', 'estrela', 'espaco', 'astronauta', 'sonho', 'nuvem'] },
-  { id: 'oceano', name: 'Fundo do mar', short: 'Oceano', bg: '#eaf3ee', ink: '#598d88', accent: '#d6a083', motif: 'whale', keywords: ['mar', 'oceano', 'baleia', 'sereia', 'peixe', 'praia'] },
+  { id: 'ceu', name: 'Um céu de sonhos', short: 'Céu', bg: '#edf1f5', ink: '#7b8ea5', accent: '#d1b77f', motif: 'moon', keywords: ['ceu', 'lua', 'estrela', 'sonho', 'nuvem'] },
+  { id: 'oceano', name: 'Fundo do mar', short: 'Oceano', bg: '#eaf3ee', ink: '#598d88', accent: '#d6a083', motif: 'whale', keywords: ['mar', 'oceano', 'baleia', 'peixe', 'praia'] },
   { id: 'jesus', name: 'Fé e afeto', short: 'Fé e afeto', bg: '#f9f3e5', ink: '#aa9468', accent: '#a8b8a0', motif: 'faith', keywords: ['jesus', 'fe', 'batizado', 'batismo', 'anjo', 'santo', 'santa', 'religios', 'nossa senhora'] },
-  { id: 'festa', name: 'Doce celebração', short: 'Festa', bg: '#f7eaf0', ink: '#b67e95', accent: '#d1b16e', motif: 'bow', keywords: ['princesa', 'laco', 'bailarina', 'festa', 'boneca', 'rosa', 'unicornio'] },
+  { id: 'festa', name: 'Doce celebração', short: 'Festa', bg: '#f7eaf0', ink: '#b67e95', accent: '#d1b16e', motif: 'bow', keywords: ['princesa', 'laco', 'bailarina', 'festa', 'boneca', 'rosa'] },
   { id: 'liso', name: 'Essencial', short: 'Liso', bg: '#eee7dc', ink: '#8a7c67', accent: '#c6ad91', motif: 'plain', keywords: ['liso', 'minimalista', 'neutro', 'sem estampa'] },
+  { id: 'ursinho', name: 'Abraço de ursinho', short: 'Ursinho', bg: '#f5eadd', ink: '#a47c5b', accent: '#d4b28d', motif: 'bear', keywords: ['urso', 'ursinh', 'teddy'] },
+  { id: 'gatinho', name: 'Carinho de gatinho', short: 'Gatinho', bg: '#f6eee7', ink: '#9c7d73', accent: '#d7b2ad', motif: 'cat', keywords: ['gato', 'gatinh', 'felino'] },
+  { id: 'cachorrinho', name: 'Meu melhor amigo', short: 'Cachorrinho', bg: '#f0eee1', ink: '#9c855b', accent: '#d2bd8c', motif: 'dog', keywords: ['cachorr', 'dog', 'cao', 'pet'] },
+  { id: 'dinossauro', name: 'Pequeno dinossauro', short: 'Dinossauro', bg: '#eef1de', ink: '#7c925f', accent: '#b8bf83', motif: 'dinosaur', keywords: ['dino', 'jurass'] },
+  { id: 'unicornio', name: 'Magia de unicórnio', short: 'Unicórnio', bg: '#f4eaf4', ink: '#ad87b6', accent: '#d3adc4', motif: 'unicorn', keywords: ['unicorn', 'magia', 'encantad'] },
+  { id: 'borboletas', name: 'Jardim de borboletas', short: 'Borboletas', bg: '#f4edf5', ink: '#a385ac', accent: '#c9b1d1', motif: 'butterfly', keywords: ['borbolet'] },
+  { id: 'abelhas', name: 'Doce como mel', short: 'Abelhinhas', bg: '#faf1d8', ink: '#af8d3e', accent: '#dbc875', motif: 'bee', keywords: ['abelh', 'mel', 'colmeia'] },
+  { id: 'arcoiris', name: 'Depois da chuva', short: 'Arco-íris', bg: '#f8eee4', ink: '#bb8c7b', accent: '#d9b19b', motif: 'rainbow', keywords: ['arco-iris', 'arco iris', 'arcoiris', 'rainbow'] },
+  { id: 'astronauta', name: 'Uma viagem às estrelas', short: 'Astronauta', bg: '#edf0f7', ink: '#7787af', accent: '#b2bddd', motif: 'astronaut', keywords: ['astronaut', 'espaco', 'espacial', 'foguete', 'planeta'] },
+  { id: 'sereia', name: 'Encantos de sereia', short: 'Sereia', bg: '#e8f2ef', ink: '#6d9a9c', accent: '#b5d1c8', motif: 'mermaid', keywords: ['sereia', 'sereinh', 'concha'] },
+  { id: 'natal', name: 'Um Natal de afeto', short: 'Natal', bg: '#f7efe2', ink: '#6f8864', accent: '#c39279', motif: 'christmas', keywords: ['natal', 'natalin', 'noel', 'rena'] },
+  { id: 'fazendinha', name: 'Um dia na fazendinha', short: 'Fazendinha', bg: '#f4efd9', ink: '#8f9468', accent: '#c2c599', motif: 'cow', keywords: ['fazend', 'vaquinh', 'vaca', 'boi', 'bovino'] },
 ]);
 export const LIDS = Object.freeze([{id:'tuck',name:'De embutir'}, {id:'cap',name:'Separada'}, {id:'handle',name:'Com alça'}]);
 export const A4 = Object.freeze({ width: 210, height: 297 });
@@ -25,25 +40,60 @@ export function mixColor(hex, target = '#ffffff', ratio = .5) {
 export function resolveTheme(config) {
   const description = norm(config.description);
   const explicit = THEMES.find(t=>t.id === config.theme) || THEMES[0];
-  const match = description ? THEMES.find(t=>t.keywords.some(k=>k.length<=3?new RegExp('(?:^|\\W)'+k+'(?:$|\\W)').test(description):description.includes(k))) : null;
+  const ranked = THEMES.flatMap(t=>t.keywords.filter(k=>k.length<=3?new RegExp('(?:^|\\W)'+k+'(?:$|\\W)').test(description):description.includes(k)).map(k=>({theme:t,length:k.length})));
+  const match = description ? ranked.sort((a,b)=>b.length-a.length)[0]?.theme : null;
   const theme = {...(match || explicit)};
-  theme.ink = hexOK(config.color || '') ? config.color : theme.ink;
+  theme.bg = hexOK(config.mainColor || '') ? config.mainColor : theme.bg;
+  const details=config.detailColor ?? config.color;
+  theme.ink = hexOK(details || '') ? details : theme.ink;
+  // Accents follow the selected detail colour; tonal shades keep illustrations legible.
+  theme.accent = mixColor(theme.ink,theme.bg,.38);
   if (config.ink) { theme.bg = '#ffffff'; theme.accent = mixColor(theme.ink, '#ffffff', .36); }
   theme.customMatched = Boolean(match);
   return theme;
 }
+export function normalizeConfig(input={}) {
+  const preset=THEMES.find(t=>t.id===input.theme)||THEMES[0];
+  const c={...DEFAULTS};
+  for(const key of Object.keys(DEFAULTS))if(Object.hasOwn(input,key))c[key]=input[key];
+  c.mainColor=input.mainColor??preset.bg;
+  c.detailColor=input.detailColor??input.color??preset.ink;
+  c.windows=Array.isArray(c.windows)?[...c.windows]:['front'];
+  c.texts=Object.fromEntries(FACES.map(f=>[f.id,String(input.texts?.[f.id]||'').normalize('NFC').replace(/[\r\n\t]/g,' ').slice(0,80)]));
+  return c;
+}
+export function projectData(config,images={}) {return {app:'dobra-atelie',version:2,config:normalizeConfig(config),images:{...images}};}
+export function parseProject(doc) {
+  if(!doc||doc.app!=='dobra-atelie'||![1,2].includes(doc.version)||!doc.config||typeof doc.config!=='object')throw new Error('Este arquivo não é um projeto Dobra Ateliê.');
+  const checked=validateConfig(normalizeConfig(doc.config));
+  if(checked.errors.length)throw new Error(checked.errors.join(' '));
+  const images=doc.version===1?(doc.image?{front:doc.image,back:doc.image}:{}):(doc.images||{});
+  if(typeof images!=='object'||Array.isArray(images)||Object.keys(images).some(k=>!FACES.some(f=>f.id===k)))throw new Error('Faces das imagens inválidas.');
+  for(const image of Object.values(images)) {
+    if(!image)continue;
+    if(typeof image.dataUrl!=='string'||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(image.dataUrl))throw new Error('Imagem do projeto inválida.');
+    if(image.sourceDataUrl&&!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(image.sourceDataUrl))throw new Error('Imagem de origem inválida.');
+  }
+  return {config:checked.config,images};
+}
 export function validateConfig(input) {
-  const c = {...DEFAULTS,...input};
+  const c = normalizeConfig(input);
   const errors = [];
   for (const [key, label] of [['height','altura'],['width','largura'],['depth','profundidade']]) {
     if (!Number.isFinite(Number(c[key])) || Number(c[key]) < 3 || Number(c[key]) > 60) errors.push(`A ${label} deve estar entre 3 e 60 cm.`);
     c[key] = Number(c[key]);
   }
-  for (const [key, min, max, label] of [['ease',0,3,'folga'],['thickness',.1,1,'espessura'],['margin',3,15,'margem'],['windowBorder',.6,3,'moldura do visor']]) {
+  for (const [key, min, max, label] of [['ease',0,3,'folga'],['thickness',.1,1,'espessura'],['margin',3,15,'margem'],['windowBorder',.6,3,'moldura do visor'],['textSize',9,30,'tamanho da fonte']]) {
     if (!Number.isFinite(Number(c[key])) || Number(c[key]) < min || Number(c[key]) > max) errors.push(`A ${label} está fora do intervalo permitido.`);
     c[key] = Number(c[key]);
   }
   if (!LIDS.some(l=>l.id === c.lid)) errors.push('Escolha uma tampa válida.');
+  if (!THEMES.some(t=>t.id===c.theme))errors.push('Escolha um tema válido.');
+  if (!hexOK(c.mainColor||'')||!hexOK(c.detailColor||''))errors.push('Escolha cores válidas para o fundo e os detalhes.');
+  const font=FONT_LIBRARY.find(f=>f.id===c.textFont);
+  if(!font)errors.push('Escolha uma fonte válida.');
+  if(!['top','center','bottom'].includes(c.textPosition))errors.push('Escolha uma posição válida para o texto.');
+  if(c.textEnabled&&font){const unsupported=[...new Set(Object.values(c.texts).join(''))].filter(char=>!font.glyphs[char]);if(unsupported.length)errors.push(`A fonte não contém ${unsupported.map(x=>'“'+x+'”').join(', ')}. Use letras, números e símbolos simples.`);}
   c.description = String(c.description || '').slice(0,120);
   c.windows = Array.isArray(c.windows) ? [...new Set(c.windows.filter(x=>['front','right','back','left'].includes(x)))] : ['front'];
   return {config:c, errors};
@@ -59,6 +109,52 @@ const rectangle = (x,y,w,h,fill,extra={}) => ({type:'rect',x,y,w,h,fill,...extra
 const ellipse = (x,y,rx,ry,fill,extra={}) => ({type:'ellipse',x,y,rx,ry,fill,...extra});
 const group = (children,transform = [1,0,0,1,0,0],extra={}) => ({type:'group',children,transform,...extra});
 const line = (x1,y1,x2,y2,fold=false) => pth([['M',x1,y1],['L',x2,y2]],null,fold?'#9a9a92':'#3a3d37',fold?.13:.2, {fold, dash:fold?[1.4,1.3]:null});
+
+export function layoutText(w,h,config,face='front') {
+  const content=String(config.texts?.[face]||'').trim();
+  if(!config.textEnabled||!content)return null;
+  const font=FONT_LIBRARY.find(f=>f.id===config.textFont)||FONT_LIBRARY[0];
+  if([...content].some(char=>!font.glyphs[char]))return {error:'O texto contém caracteres indisponíveis na fonte.'};
+  const hasWindow=config.window&&config.windows.includes(face),padding=hasWindow?3:5;
+  const width=w-padding*2;
+  const height=hasWindow?config.windowBorder*10-2:Math.min(26,h*.24);
+  const position=hasWindow&&config.textPosition==='center'?'bottom':config.textPosition;
+  const y=position==='top'?(hasWindow?1:3):position==='center'?(h-height)/2:h-height-(hasWindow?1:3);
+  const area={x:padding,y,w:width,h:height};
+  const advance=text=>[...text].reduce((sum,char)=>sum+font.glyphs[char].advance,0)/1000;
+  function wrap(size){
+    const lines=[];let current='';
+    const limit=width-2*size*(font.shear+.07);
+    for(const word of content.replace(/\s+/g,' ').split(' ')){
+      const candidate=current?current+' '+word:word;
+      if(advance(candidate)*size<=limit){current=candidate;continue;}
+      if(current){lines.push(current);current='';}
+      for(const char of word){if(current&&advance(current+char)*size>limit){lines.push(current);current='';}current+=char;}
+    }
+    if(current)lines.push(current);return lines;
+  }
+  let size=config.textSize*25.4/72,lines=wrap(size);
+  while((lines.length*size*1.25>height||lines.some(t=>advance(t)*size>width))&&size>2.2){size=Math.max(2.2,size*.9);lines=wrap(size);}
+  if(lines.length*size*1.25>height+.001||lines.some(t=>advance(t)*size>width+.001))return {error:'O texto não cabe na área disponível. Encurte a mensagem ou aumente a moldura do visor.'};
+  return {font,area,size,lines,lineHeight:size*1.25,advance};
+}
+export function textNodes(w,h,config,face='front') {
+  const layout=layoutText(w,h,config,face);if(!layout||layout.error)return [];
+  const {font,area,size,lines,lineHeight,advance}=layout,children=[],scale=size/1000,ink=resolveTheme(config).ink;
+  const top=area.y+(area.h-lines.length*lineHeight)/2;
+  lines.forEach((text,index)=>{
+    let x=area.x+(area.w-advance(text)*size)/2;
+    const baseline=top+index*lineHeight+size*.96;
+    for(const char of text){const glyph=font.glyphs[char];if(glyph.commands.length)children.push(group([pth(glyph.commands,ink,null,.18,{textGlyph:true})],[scale,0,font.shear*scale,-scale,x,baseline]));x+=glyph.advance*scale;}
+  });
+  return [group(children,[1,0,0,1,0,0],{clip:area,textContent:config.texts[face]})];
+}
+export function fontSampleSVG(id){
+  const font=FONT_LIBRARY.find(f=>f.id===id)||FONT_LIBRARY[0],scale=.016;
+  let x=(70-[...'Abc'].reduce((n,char)=>n+font.glyphs[char].advance,0)*scale)/2;
+  const nodes=[...'Abc'].map(char=>{const glyph=font.glyphs[char],node=group([pth(glyph.commands,'#536943')],[scale,0,font.shear*scale,-scale,x,18]);x+=glyph.advance*scale;return node;});
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 23" aria-hidden="true">${nodesToSVG(nodes)}</svg>`;
+}
 
 function flowerMotif(t) {
   const n=[];
@@ -87,10 +183,23 @@ function motifNodes(t, kind = t.motif) {
   if(kind==='whale') return [pth([['M',15,57],['C',16,20,67,16,77,56],['C',83,59,88,47,96,48],['C',97,63,91,72,81,72],['C',66,95,16,92,15,57],['Z']],t.ink),pth([['M',19,65],['C',31,86,68,86,80,67],['C',61,77,32,76,19,65],['Z']],light),ellipse(33,52,2.8,2.8,'#334a48'),pth([['M',40,19],['Q',34,4,29,15],['M',41,17],['Q',47,1,52,12]],null,t.ink,2.5),ellipse(27,62,5,3,t.accent)];
   if(kind==='faith') return [rectangle(44,16,12,68,t.ink),rectangle(24,36,52,12,t.ink),...leafMotif({...t,ink:t.accent}).map(n=>n),ellipse(82,16,3,3,t.accent),ellipse(19,71,2.5,2.5,t.accent)];
   if(kind==='bow') return [pth([['M',48,48],['C',5,8,0,62,18,72],['C',27,74,37,61,48,55],['Z']],t.ink),pth([['M',52,48],['C',95,8,100,62,82,72],['C',73,74,63,61,52,55],['Z']],t.ink),polygon([[44,53],[26,91],[44,84],[49,94],[53,55]],t.accent),polygon([[51,54],[64,94],[70,82],[86,88],[57,52]],t.accent),ellipse(50,52,9,11,mixColor(t.ink,'#ffffff',.25))];
+  if(kind==='bear') return [ellipse(26,25,15,15,t.ink),ellipse(74,25,15,15,t.ink),ellipse(26,25,8,8,t.accent),ellipse(74,25,8,8,t.accent),ellipse(50,55,35,34,t.ink),ellipse(50,69,19,14,light),ellipse(37,52,2.5,3,'#473e35'),ellipse(63,52,2.5,3,'#473e35'),ellipse(50,65,5,3,'#473e35'),pth([['M',50,67],['L',50,73],['M',43,73],['Q',50,79,57,73]],null,'#473e35',1.7)];
+  if(kind==='cat') return [polygon([[19,42],[19,8],[41,28]],t.ink),polygon([[59,28],[81,8],[81,42]],t.ink),polygon([[24,33],[24,17],[35,29]],t.accent),polygon([[65,29],[76,17],[76,33]],t.accent),ellipse(50,57,35,30,light),ellipse(36,53,2.5,3,t.ink),ellipse(64,53,2.5,3,t.ink),polygon([[46,63],[54,63],[50,68]],t.ink),pth([['M',50,68],['Q',43,77,39,71],['M',50,68],['Q',57,77,61,71],['M',8,58],['L',30,63],['M',7,70],['L',30,69],['M',70,63],['L',92,58],['M',70,69],['L',93,70]],null,t.ink,1.5)];
+  if(kind==='dog') return [ellipse(24,50,14,29,t.ink),ellipse(76,50,14,29,t.ink),ellipse(50,51,30,32,light),ellipse(63,46,11,15,t.accent),ellipse(38,48,2.7,3,'#493e33'),ellipse(63,48,2.7,3,'#493e33'),ellipse(50,63,6,4,'#493e33'),pth([['M',42,72],['Q',50,79,58,72]],null,'#493e33',1.7),pth([['M',47,76],['C',46,90,58,90,55,76],['Z']],t.accent)];
+  if(kind==='dinosaur') return [polygon([[48,37],[49,24],[59,35],[64,22],[71,34],[80,27],[81,40],[91,40],[84,49]],t.accent),pth([['M',24,66],['C',9,67,5,53,8,43],['C',18,57,24,53,29,49],['L',37,34],['C',45,16,72,16,81,34],['C',88,47,76,52,65,47],['L',62,73],['L',72,88],['L',55,88],['L',48,77],['L',40,88],['L',24,88],['L',30,72],['Z']],t.ink),ellipse(40,63,13,16,light),ellipse(68,34,2.4,2.4,'#344a36'),pth([['M',71,43],['Q',76,46,81,42]],null,'#344a36',1.5),ellipse(31,56,3,4,t.accent)];
+  if(kind==='unicorn') return [polygon([[46,30],[54,4],[61,33]],t.accent),polygon([[23,40],[24,15],[42,35]],light),polygon([[61,35],[79,15],[78,43]],light),pth([['M',25,43],['C',12,67,25,91,50,91],['C',78,91,89,68,75,40],['C',63,23,38,23,25,43],['Z']],light),pth([['M',23,42],['C',10,51,12,77,24,91],['C',32,77,29,60,35,52],['C',45,37,68,48,70,30],['C',51,22,32,25,23,42],['Z']],t.ink),pth([['M',35,63],['Q',41,69,47,63],['M',59,63],['Q',65,69,71,63]],null,t.ink,2),ellipse(54,78,14,8,t.accent),ellipse(49,77,1.5,2,t.ink),ellipse(60,77,1.5,2,t.ink)];
+  if(kind==='butterfly') return [pth([['M',48,50],['C',7,-4,-1,38,17,55],['C',1,76,30,98,48,61],['Z']],t.ink),pth([['M',52,50],['C',93,-4,101,38,83,55],['C',99,76,70,98,52,61],['Z']],t.ink),ellipse(27,35,10,13,t.accent),ellipse(73,35,10,13,t.accent),ellipse(31,72,7,9,light),ellipse(69,72,7,9,light),ellipse(50,55,4,24,t.accent),pth([['M',48,32],['Q',36,12,33,22],['M',52,32],['Q',64,12,67,22]],null,t.ink,2)];
+  if(kind==='bee') return [ellipse(34,29,17,20,light),ellipse(66,29,17,20,light),ellipse(50,59,33,26,t.accent),rectangle(32,35,9,48,t.ink),rectangle(52,34,9,50,t.ink),ellipse(73,57,17,20,t.accent),ellipse(79,52,2.5,2.5,'#544a34'),pth([['M',78,63],['Q',83,67,87,62],['M',68,38],['L',69,29],['M',76,39],['L',81,31]],null,t.ink,2),polygon([[17,55],[6,60],[18,65]],t.ink)];
+  if(kind==='rainbow') return [pth([['M',13,77],['C',13,5,87,5,87,77]],null,t.ink,12),pth([['M',28,77],['C',28,27,72,27,72,77]],null,t.accent,10),pth([['M',41,77],['C',41,48,59,48,59,77]],null,light,8),ellipse(18,81,16,10,light),ellipse(83,81,16,10,light)];
+  if(kind==='astronaut') return [rectangle(31,48,38,37,light),ellipse(50,30,28,27,light),ellipse(50,30,21,19,t.ink),pth([['M',36,24],['Q',42,14,53,17]],null,light,3),rectangle(40,55,20,13,t.accent),ellipse(46,61,2,2,t.ink),ellipse(55,61,2,2,t.ink),polygon([[30,53],[14,66],[21,75],[34,67]],light),polygon([[70,53],[86,65],[79,74],[66,67]],light),rectangle(31,79,15,15,t.ink),rectangle(54,79,15,15,t.ink)];
+  if(kind==='mermaid') return [pth([['M',30,31],['C',20,1,76,0,73,37],['L',73,56],['L',28,56],['Z']],t.ink),ellipse(50,27,17,20,skin),pth([['M',30,20],['Q',47,-2,70,14],['Q',53,12,45,23],['Z']],t.ink),ellipse(44,27,1.7,1.7,t.ink),ellipse(57,27,1.7,1.7,t.ink),pth([['M',46,35],['Q',51,39,56,35]],null,t.ink,1.4),polygon([[38,46],[62,46],[60,62],[40,62]],skin),pth([['M',39,57],['L',62,57],['C',66,70,56,78,62,84],['C',80,67,92,83,82,95],['C',70,99,58,93,55,88],['C',26,83,31,70,39,57],['Z']],t.accent),pth([['M',40,61],['Q',51,68,62,61]],null,t.ink,1.5)];
+  if(kind==='christmas') return [rectangle(43,76,14,18,t.ink),polygon([[50,9],[28,36],[38,36],[17,60],[31,60],[9,83],[91,83],[69,60],[83,60],[62,36],[72,36]],t.ink),polygon([[50,1],[54,10],[64,11],[57,18],[59,28],[50,23],[41,28],[43,18],[36,11],[46,10]],t.accent),ellipse(40,43,4,4,light),ellipse(60,57,4,4,t.accent),ellipse(34,71,4,4,t.accent),ellipse(70,73,4,4,light),pth([['M',32,46],['Q',48,54,68,46],['M',24,67],['Q',49,78,77,67]],null,light,2)];
+  if(kind==='cow') return [polygon([[23,33],[18,8],[35,27]],t.accent),polygon([[65,27],[82,8],[77,33]],t.accent),ellipse(18,40,14,9,t.ink),ellipse(82,40,14,9,t.ink),ellipse(50,53,32,33,light),ellipse(33,39,11,14,t.ink),ellipse(37,48,2.2,2.2,'#3f4638'),ellipse(64,48,2.2,2.2,'#3f4638'),ellipse(50,71,25,15,t.accent),ellipse(40,70,3,4,t.ink),ellipse(60,70,3,4,t.ink),pth([['M',43,79],['Q',50,83,57,79]],null,t.ink,1.5)];
   return [];
 }
-export function artNodes(w,h,config,face='front',image=null) {
+export function artNodes(w,h,config,face='front',images=null) {
   const t=resolveTheme(config), children=[rectangle(0,0,w,h,t.bg)];
+  const image=images?.dataUrl?(['front','back'].includes(face)?images:null):images?.[face];
   if(t.motif !== 'plain') {
     children.push(pth([['M',0,h*.81],['C',w*.3,h*.74,w*.66,h*.95,w,h*.83],['L',w,h],['L',0,h],['Z']],mixColor(t.ink,t.bg,.86)));
     for(let i=0;i<18;i++) {const x=((i*47+9)%97)/100*w, y=((i*31+11)%97)/100*h;children.push(ellipse(x,y,.35+(i%3)*.1,.35+(i%3)*.1,mixColor(t.ink,t.bg,.68)));}
@@ -98,14 +207,16 @@ export function artNodes(w,h,config,face='front',image=null) {
     const kind=(face==='right'||face==='left')?'leaf':t.motif;
     children.push(group(motifNodes(t,kind),matrix((w-s)/2,y,s/100)));
     const tiny=Math.min(w*.17,12);
-    children.push(group(motifNodes(t,'leaf'),matrix(w*.08,h-tiny*1.9,tiny/100)));
-    children.push(group(motifNodes(t,'leaf'),matrix(w*.79,h*.08,tiny/100)));
+    const label=layoutText(w,h,config,face);
+    if(!label||label.error||label.area.y<h/2)children.push(group(motifNodes(t,'leaf'),matrix(w*.08,h-tiny*1.9,tiny/100)));
+    if(!label||label.error||label.area.y>h/3)children.push(group(motifNodes(t,'leaf'),matrix(w*.79,h*.08,tiny/100)));
   }
-  if(image && (face==='front'||face==='back')) {
+  if(image) {
     const iw=Math.min(w*.8,h*.55), ih=iw/image.ratio;
     const fit=Math.min(1,h*.55/ih);
     children.push({type:'image',x:(w-iw*fit)/2,y:(h-ih*fit)/2,w:iw*fit,h:ih*fit,image});
   }
+  children.push(...textNodes(w,h,config,face));
   return group(children,[1,0,0,1,0,0],{clip:{x:0,y:0,w,h}});
 }
 
@@ -141,6 +252,7 @@ export function createModel(input={},image=null) {
   for(const [id,label,width] of faceDefs) {
     if(!fitsA4(width,H,m)) errors.push(`${label}: a face de ${(width/10).toFixed(1).replace('.',',')} × ${(H/10).toFixed(1).replace('.',',')} cm não cabe inteira em A4. Reduza as medidas ou a folga.`);
     if(c.window&&c.windows.includes(id)&&!windowGeometry(width,H,c)) errors.push(`${label}: a moldura é grande demais para o visor. Diminua a moldura ou aumente essa face.`);
+    const text=layoutText(width,H,c,id);if(text?.error)errors.push(`${label}: ${text.error}`);
   }
   if(!fitsA4(W,D-.4,m)) errors.push('A face do fundo não cabe inteira em A4. Reduza a largura ou a profundidade.');
   if(errors.length) return {config:c,internal,W,D,H,errors,pieces:[],pages:[]};
@@ -295,7 +407,7 @@ export function nodesToSVG(nodes,options={}) {
     if(n.type==='rect')return `<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" ${fill}${stroke}/>`;
     if(n.type==='ellipse')return `<ellipse cx="${n.x}" cy="${n.y}" rx="${n.rx}" ry="${n.ry}" ${fill}${stroke}/>`;
     if(n.type==='path')return `<path d="${pathString(n.commands)}" ${fill}${stroke}/>`;
-    if(n.type==='image') return `<image href="${xmlEscape(n.image.dataUrl)}" x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" preserveAspectRatio="xMidYMid meet"/>`;
+    if(n.type==='image') return `<image href="${xmlEscape(n.image.sourceDataUrl||n.image.dataUrl)}" x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" preserveAspectRatio="xMidYMid meet"/>`;
     return '';
   };
   const body=nodes.map(render).join('');return `<defs>${defs}</defs>${body}`;
@@ -304,7 +416,7 @@ export function pageSVG(page,config) {return `<svg xmlns="http://www.w3.org/2000
 export function faceSVG(w,h,config,face='front',image=null) {return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" aria-hidden="true">${nodesToSVG([artNodes(w,h,config,face,image)])}</svg>`;}
 
 /* Small vector PDF writer. Artwork, cuts and scores share one millimetre space.
- * PDF content contains no text operators, page labels or instructions. */
+ * User lettering is outlined; page labels and assembly instructions are omitted. */
 const PDF_MM=72/25.4;
 function pdfRGB(hex) {return hex.match(/[0-9a-f]{2}/gi).map(v=>(parseInt(v,16)/255).toFixed(4)).join(' ');}
 function pdfPath(cmds) {

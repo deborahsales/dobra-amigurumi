@@ -17,7 +17,7 @@ npm test
 npm run build
 ```
 
-O resultado é `dist/index.html`: um arquivo independente, com CSS e JavaScript incorporados, que também pode ser aberto diretamente no navegador. Não depende de CDN nem baixa fontes ou bibliotecas.
+O resultado é `dist/index.html`: um arquivo independente, com CSS, JavaScript e contornos vetoriais das fontes incorporados, que também pode ser aberto diretamente no navegador. Não depende de CDN nem baixa fontes ou bibliotecas.
 
 ## GitHub
 
@@ -54,13 +54,16 @@ Publique. Os próximos commits na branch de produção serão implantados pela i
 - Fundo com abas laterais, painel principal com rasgo e lingueta de travamento. O fechamento do fundo não usa cola. As emendas das faces e as abas que saem separadas usam cola por dentro.
 - Opção de visor em acrílico ou acetato, com seleção independente de frente, verso e duas laterais. A moldura é ajustável.
 - Medidas de corte do material transparente calculadas com 5 mm de sobreposição em cada borda. O visor é aplicado por dentro; não há trilho para acrílico rígido.
-- Oito coleções de arte vetorial: jardim, bosque, safari, céu, oceano, fé e afeto, festa e liso.
+- Duas cores independentes: **cor principal** para o fundo da caixa e **cor dos detalhes** para desenhos, enfeites e textos. O modo de economia de tinta usa fundo branco durante a impressão/prévia sem apagar a cor escolhida.
+- Vinte coleções de arte vetorial: jardim, bosque, safari, céu, oceano, fé e afeto, festa, liso, ursinho, gatinho, cachorrinho, dinossauro, unicórnio, borboletas, abelhinhas, arco-íris, astronauta, sereia, Natal e fazendinha.
 - Texto de tema reconhecido por palavras-chave. Temas não reconhecidos mantêm a coleção escolhida e sugerem enviar uma imagem. **Não há geração por IA de qualquer tema livre.**
-- Arte própria PNG/JPG/WebP colocada na frente e no verso. O fundo transparente de uma imagem é composto sobre a cor de fundo escolhida; a imagem é incorporada ao PDF como JPEG.
+- Até quatro artes próprias PNG/JPG/WebP: uma na frente, uma no verso e uma em cada lateral, com troca e remoção independentes. O PNG original transparente é preservado; seu fundo é recomposto na cor atual ao gerar o PDF, que incorpora a arte como JPEG. Cada arquivo pode ter até 12 MB, e sua resolução é limitada a 1600 px no maior lado.
+- Textos opcionais e independentes nas quatro faces, até 80 caracteres por face. Quatro estilos: Clássica, Moderna, Delicada e Marcante. O usuário escolhe tamanho (9 a 30 pt) e posição (em cima, ao centro ou embaixo). O texto usa a cor dos detalhes e se ajusta automaticamente à largura disponível.
+- Nas faces com visor, os textos permanecem na moldura superior ou inferior. A opção central usa a moldura inferior. Se o texto não couber de forma legível, a exportação é bloqueada e o site pede para encurtá-lo ou ampliar a moldura.
 - Prévia tridimensional que gira, simulação dos visores, e prévia de cada folha A4.
-- PDF vetorial para a arte padrão; imagens enviadas mantêm sua natureza raster. Sem textos, medidas, números, instruções ou marcas de página visíveis. O tema não é impresso como texto.
+- PDF vetorial para a arte padrão e os textos escolhidos; imagens enviadas mantêm sua natureza raster. A tipografia usa os mesmos contornos vetoriais na prévia e no PDF, incluindo acentos em português. Não há medidas, nomes de peças, instruções ou marcas de página visíveis. O tema digitado não é impresso como texto.
 - Vincos opcionais, modo de economia de tinta, margem imprimível e espessura de papel ajustáveis.
-- Salvar e abrir projeto em JSON, inclusive imagem enviada. As configurações são lembradas por `localStorage`; a imagem só é preservada ao salvar o projeto em JSON.
+- Salvar e abrir projeto em JSON, incluindo as quatro imagens, os textos, as cores e a fonte escolhida. As configurações são lembradas por `localStorage`; as imagens só são preservadas ao salvar o projeto em JSON. Projetos antigos continuam abrindo: a antiga cor passa a ser a cor dos detalhes e a imagem única continua na frente e no verso.
 - Impressão pelo navegador como alternativa ao PDF.
 
 ## Como as faces cabem no A4
@@ -85,16 +88,21 @@ Faça um protótipo para avaliar o ajuste do papel, da cola e do visor, e a resi
 index.html                 Interface e campos acessíveis
 src/style.css              Layout responsivo e prévia 3D em CSS
 src/engine.js              Geometria, temas, visores, planejamento A4, SVG e PDF
+src/fonts.js               Subconjuntos de fontes como contornos vetoriais
 src/app.js                 Interações, uploads e persistência local
 scripts/build.mjs          Compilação sem dependências para HTML independente
 scripts/serve.mjs          Servidor local de desenvolvimento
 tests/engine.test.mjs      Testes das regras de fabricação e exportação
+tests/fixtures/images.json Quatro imagens sintéticas para conferir cada face
+FONT-LICENSE.txt           Licença das fontes derivadas de DejaVu
 vercel.json               Configuração de deploy
 .github/workflows/ci.yml   Testes e build no GitHub
 ```
 
 ## Verificação realizada
 
-Foram executados os testes automatizados de geometria, preservação de faces, limites A4, rotação sem escala, sobreposição, visores por face, posicionamento da trava, texto ausente no PDF e configuração dos temas. Os PDFs das três tampas e de um modelo compacto foram abertos por um leitor PDF independente; páginas A4 e ausência de texto foram verificadas, e as páginas renderizadas foram inspecionadas visualmente.
+Foram executados 16 testes automatizados de geometria, preservação de faces, limites A4, rotação sem escala, sobreposição, visores por face, posicionamento da trava, ausência de textos quando desligados, vinte temas, cores independentes, quatro imagens, migração de projetos e fontes com acentos. PDFs das tampas e de modelos com artes, textos e visores foram abertos por um leitor PDF independente; as páginas A4 e a renderização foram conferidas. Os textos opcionais são contornos vetoriais; não usam fontes externas nem dependem das fontes instaladas no dispositivo.
+
+As fontes Dobra são subconjuntos derivados de DejaVu com a licença incluída em `FONT-LICENSE.txt`. `scripts/prepare-fonts.py` permite regenerá-los com FontTools e os arquivos DejaVu disponíveis localmente. Essa ferramenta de manutenção não é executada no build e não adiciona dependências Python ao deploy.
 
 Não foi executada uma sessão de navegador real neste ambiente. Verifique a prévia 3D, envio de imagens e downloads em Chrome/Safari, incluindo um celular, antes de colocar o site em produção.

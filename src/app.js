@@ -1,4 +1,4 @@
-import { DEFAULTS, THEMES, LIDS, createModel, resolveTheme, faceSVG, nodesToSVG, artNodes, pageSVG, createPDF, windowGeometry } from './engine.js';
+import { DEFAULTS, THEMES, LIDS, FACES, TEXT_FONTS, fontSampleSVG, normalizeConfig, projectData, parseProject, createModel, resolveTheme, faceSVG, nodesToSVG, artNodes, pageSVG, createPDF, windowGeometry } from './engine.js';
 
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const htmlEscape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -38,9 +38,10 @@ const lidsArt={
 $$('[data-lid-art]').forEach(el=>el.innerHTML=`<svg viewBox="0 0 68 65" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round">${lidsArt[el.dataset.lidArt]}</svg>`);
 fillIcons();
 
-let state={...DEFAULTS,windows:[...DEFAULTS.windows]},uploadedImage=null,model,activeTab='box',toastTimer;
+let state=normalizeConfig(),uploadedImages={},model,activeTab='box',toastTimer,colorTimer,themeExpanded=false;
+const imageSources=new WeakMap(),uploadTokens={};
 const storageKey='dobra-atelie-v1';
-try {const saved=JSON.parse(localStorage.getItem(storageKey));if(saved&&typeof saved==='object')state={...DEFAULTS,...saved};}catch{}
+try {const saved=JSON.parse(localStorage.getItem(storageKey));if(saved&&typeof saved==='object')state=normalizeConfig(saved);}catch{}
 function persist(){try{localStorage.setItem(storageKey,JSON.stringify(state));}catch{}}
 function toast(message){$('#toast').textContent=message;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4500);}
 function setForm(){
@@ -49,27 +50,32 @@ function setForm(){
     if(el.type==='checkbox')el.checked=Boolean(value);else el.value=value;
   }
   $$('input[name=windows]').forEach(el=>el.checked=state.windows?.includes(el.value));
+  if(THEMES.findIndex(t=>t.id===state.theme)>=8)themeExpanded=true;
 }
 function readForm(){
-  for(const key of ['height','width','depth','ease','thickness','margin','windowBorder']) {
+  for(const key of ['height','width','depth','ease','thickness','margin','windowBorder','textSize']) {
     const field=document.getElementById(key);state[key]=field.value===''?NaN:Number(field.value);
   }
-  for(const key of ['window','folds','ink'])state[key]=$('#'+key).checked;
-  state.color=$('#color').value;state.description=$('#description').value;
+  for(const key of ['window','folds','ink','textEnabled'])state[key]=$('#'+key).checked;
+  state.mainColor=$('#mainColor').value;state.detailColor=$('#detailColor').value;state.description=$('#description').value;
   state.windows=$$('input[name=windows]:checked').map(el=>el.value);
+  state.textPosition=$('#textPosition').value;
+  state.texts=Object.fromEntries(FACES.map(f=>[f.id,$('#text-'+f.id).value]));
 }
 function renderThemes(){
-  $('#theme-grid').innerHTML=THEMES.map(t=>{
+  $('#theme-grid').innerHTML=THEMES.map((t,i)=>{
     const selected=state.theme===t.id;
-    return `<button type="button" class="theme-option${selected?' selected':''}" data-theme="${t.id}" aria-pressed="${selected}" aria-label="${t.name}"><span class="theme-sample"><svg viewBox="0 0 60 65" aria-hidden="true">${nodesToSVG([artNodes(60,65,{...DEFAULTS,theme:t.id,color:t.ink},'front')])}</svg></span><strong>${t.short}</strong></button>`;
+    return `<button type="button" class="theme-option${i>=8?' extra-theme':''}${selected?' selected':''}" data-theme="${t.id}" aria-pressed="${selected}" aria-label="${t.name}"><span class="theme-sample"><svg viewBox="0 0 60 65" aria-hidden="true">${nodesToSVG([artNodes(60,65,{...DEFAULTS,theme:t.id,mainColor:t.bg,detailColor:t.ink},'front')])}</svg></span><strong>${t.short}</strong></button>`;
   }).join('');
-  $('#theme-grid').addEventListener('click',e=>{const btn=e.target.closest('[data-theme]');if(!btn)return;const t=THEMES.find(v=>v.id===btn.dataset.theme);state.theme=t.id;state.color=t.ink;state.description='';setForm();update();});
+  $('#theme-grid').addEventListener('click',e=>{const btn=e.target.closest('[data-theme]');if(!btn)return;const t=THEMES.find(v=>v.id===btn.dataset.theme);state.theme=t.id;state.mainColor=t.bg;state.detailColor=t.ink;state.description='';setForm();update();});
 }
 function renderSwatches(){
-  const palette=[['#697e63','Verde sálvia'],['#b38570','Terracota'],['#b77e94','Rosa antigo'],['#7b8ea5','Azul suave'],['#aa9468','Dourado natural']];
-  $('#swatches').innerHTML=palette.map(([color,name])=>`<button type="button" class="swatch${state.color===color?' selected':''}" data-color="${color}" style="background:${color}" aria-label="${name}" title="${name}" aria-pressed="${state.color===color}"></button>`).join('');
+  const palettes={mainColor:[['#f5f1e5','Creme'],['#e4eddd','Verde claro'],['#f3e0e7','Rosa claro'],['#e2eaf4','Azul claro'],['#eae0f1','Lavanda'],['#ffffff','Branco']],detailColor:[['#697e63','Verde sálvia'],['#b38570','Terracota'],['#b77e94','Rosa antigo'],['#7b8ea5','Azul suave'],['#aa9468','Dourado natural'],['#263f33','Verde escuro']]};
+  for(const [key,palette]of Object.entries(palettes))$('#swatches-'+key).innerHTML=palette.map(([color,name])=>`<button type="button" class="swatch${state[key]===color?' selected':''}" data-color="${color}" data-color-key="${key}" style="background:${color}" aria-label="${key==='mainColor'?'Fundo':'Detalhes'}: ${name}" title="${name}" aria-pressed="${state[key]===color}"></button>`).join('');
 }
-$('#swatches').addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b)return;state.color=b.dataset.color;$('#color').value=state.color;update();});
+$('#color-controls').addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b)return;const key=b.dataset.colorKey;state[key]=b.dataset.color;$('#'+key).value=state[key];clearTimeout(colorTimer);update();});
+$('#more-themes').addEventListener('click',()=>{themeExpanded=!themeExpanded;renderThemeExpansion();});
+function renderThemeExpansion(){const selected=THEMES.findIndex(t=>t.id===resolveTheme(state).id);$('#theme-grid').classList.toggle('is-expanded',themeExpanded);$$('.extra-theme').forEach((el,i)=>el.hidden=!themeExpanded&&i+8!==selected);$('#more-themes').setAttribute('aria-expanded',String(themeExpanded));$('#more-themes').textContent=themeExpanded?'Mostrar menos temas':`Ver todos os ${THEMES.length} temas`;}
 
 function renderBox(){
   const valid=Number.isFinite(model.W)&&Number.isFinite(model.H)&&Number.isFinite(model.D)&&model.W>0&&model.H>0&&model.D>0;
@@ -81,12 +87,12 @@ function renderBox(){
   box.style.width=bw+'px';box.style.height=bh+'px';box.style.transform=`rotateX(-15deg) rotateY(${$('#rotation').value}deg)`;
   const definitions=[['front',W,H,bw,bh,`translateZ(${bd/2}px)`],['back',W,H,bw,bh,`rotateY(180deg) translateZ(${bd/2}px)`],['right',D,H,bd,bh,`rotateY(90deg) translateZ(${bw/2}px)`],['left',D,H,bd,bh,`rotateY(-90deg) translateZ(${bw/2}px)`],['top',W,D,bw,bd,`translateY(${-bh/2}px) rotateX(90deg)`],['bottom',W,D,bw,bd,`translateY(${bh/2}px) rotateX(-90deg)`]];
   box.innerHTML=definitions.map(([id,w,h,pw,ph,transform])=>{
-    let artwork=faceSVG(w,h,state,id==='top'?'lid':id,uploadedImage);
+    let artwork=faceSVG(w,h,state,id==='top'?'lid':id,uploadedImages);
     const isWindow=state.window&&state.windows.includes(id),v=isWindow?windowGeometry(w,h,state):null;
     if(v) {
       // A white material aperture is replaced by a translucent surface in 3D.
       const maskId=`visor-${id}`;
-      artwork=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" aria-hidden="true"><defs><mask id="${maskId}"><rect width="${w}" height="${h}" fill="white"/><rect x="${v.x}" y="${v.y}" width="${v.w}" height="${v.h}" fill="black"/></mask></defs><g mask="url(#${maskId})">${nodesToSVG([artNodes(w,h,state,id,uploadedImage)])}</g></svg>`;
+      artwork=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" aria-hidden="true"><defs><mask id="${maskId}"><rect width="${w}" height="${h}" fill="white"/><rect x="${v.x}" y="${v.y}" width="${v.w}" height="${v.h}" fill="black"/></mask></defs><g mask="url(#${maskId})">${nodesToSVG([artNodes(w,h,state,id,uploadedImages)])}</g></svg>`;
     }
     const visor=v?`<div class="preview-visor" style="left:${v.x/w*100}%;top:${v.y/h*100}%;width:${v.w/w*100}%;height:${v.h/h*100}%"></div>`:'';
     const cap=state.lid==='cap'&&!['top','bottom'].includes(id)?'<span class="cap-band"></span>':'';
@@ -111,18 +117,19 @@ function renderVisors(){
   }).join('')+(state.windows.length?'':'<span>Escolha ao menos uma face para o visor.</span>');
 }
 function update(){
-  model=createModel(state,uploadedImage);
+  refreshImageBackgrounds();
+  model=createModel(state,uploadedImages);
   $('#inside-size').innerHTML=icon('box')+' Espaço interno: '+(model.internal?[model.internal.h,model.internal.w,model.internal.d].map(cm).join(' × ')+' cm':'informe as três medidas');
   $$('[data-theme]').forEach(btn=>{const on=btn.dataset.theme===resolveTheme(state).id;btn.classList.toggle('selected',on);btn.setAttribute('aria-pressed',String(on));});
   $$('[data-lid]').forEach(btn=>{const on=btn.dataset.lid===state.lid;btn.classList.toggle('selected',on);btn.setAttribute('aria-pressed',String(on));});
-  renderSwatches();renderBox();renderVisors();
+  renderSwatches();renderThemeExpansion();renderBox();renderVisors();renderTextSettings();
   if(activeTab==='pages')renderSheets();
   const errs=[...model.errors];if(state.window&&!state.windows.length)errs.push('Escolha pelo menos uma face para o visor ou desative a opção de visor transparente.');
   $('#model-errors').innerHTML=errs.map(e=>`<p>${htmlEscape(e)}</p>`).join('');$('#model-errors').hidden=!errs.length;
   const note=model.notices?.[0];$('#model-notices').hidden=!note;$('#model-notices').innerHTML=note?icon('info')+`<span>${htmlEscape(note)} As instruções de união aparecem no guia, fora do PDF.</span>`:'';
   $('#download').disabled=!!errs.length;$('#print').disabled=!!errs.length;
   $('#page-count-tab').textContent=model.pages.length||'—';
-  $('#export-summary').textContent=errs.length?'Ajuste as medidas para gerar o PDF':`${model.pages.length} folhas A4 · PDF vetorial · escala 1:1`;
+  $('#export-summary').textContent=errs.length?'Ajuste as opções para gerar o PDF':`${model.pages.length} folhas A4 · PDF vetorial · escala 1:1`;
   const typed=state.description.trim();const theme=resolveTheme(state);
   $('#theme-hint').textContent=typed?(theme.customMatched?`Tema reconhecido: ${theme.name}. O tema orienta a estampa e não é impresso como texto.`:`Usando a coleção ${theme.name}. Para representar “${typed}” com fidelidade, envie a sua arte.`):'Palavras reconhecidas selecionam uma coleção. Para uma arte específica, envie uma imagem.';
   persist();
@@ -131,7 +138,7 @@ $('#box-form').addEventListener('submit',e=>e.preventDefault());
 $('#box-form').addEventListener('input',e=>{
   if(e.target.type==='file')return;
   readForm();if(e.target.id==='window'&&state.window&&!state.windows.length){state.windows=['front'];$('input[name=windows][value=front]').checked=true;}
-  update();
+  if(['mainColor','detailColor'].includes(e.target.id)){clearTimeout(colorTimer);colorTimer=setTimeout(update,90);}else update();
 });
 $$('[data-lid]').forEach(btn=>btn.addEventListener('click',()=>{state.lid=btn.dataset.lid;update();}));
 function switchTab(tab){
@@ -146,49 +153,67 @@ window.addEventListener('resize',()=>{if(activeTab==='box')renderBox();});
 
 function downloadBytes(bytes,name,type){const blob=new Blob([bytes],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
 function fileBase(){return `dobra-${state.height}x${state.width}x${state.depth}-${state.lid}`;}
-$('#download').addEventListener('click',()=>{try{downloadBytes(createPDF(model),fileBase()+'.pdf','application/pdf');toast('Seu molde está pronto. Imprima em A4 a 100%.');}catch(err){toast('Não foi possível gerar o PDF. '+err.message);}});
+$('#download').addEventListener('click',()=>{try{clearTimeout(colorTimer);update();downloadBytes(createPDF(model),fileBase()+'.pdf','application/pdf');toast('Seu molde está pronto. Imprima em A4 a 100%.');}catch(err){toast('Não foi possível gerar o PDF. '+err.message);}});
 $('#print').addEventListener('click',()=>{
-  if(model.errors.length)return;
+  clearTimeout(colorTimer);update();if(model.errors.length)return;
   let root=$('#print-root');if(!root){root=document.createElement('div');root.id='print-root';root.hidden=true;document.body.appendChild(root);}
   root.innerHTML=model.pages.map(p=>`<div class="print-page">${pageSVG(p,state)}</div>`).join('');
   root.hidden=false;window.print();
 });
 window.addEventListener('afterprint',()=>{const root=$('#print-root');if(root)root.hidden=true;});
 
+function decodeImage(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Não foi possível abrir a imagem.'));im.src=src;});}
+function flattenImage(asset,source,bg){
+  const canvas=document.createElement('canvas');canvas.width=asset.width;canvas.height=asset.height;
+  const ctx=canvas.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(source,0,0,canvas.width,canvas.height);
+  asset.dataUrl=canvas.toDataURL('image/jpeg',.94);asset.background=bg;
+}
+function refreshImageBackgrounds(){const bg=resolveTheme(state).bg;for(const asset of new Set(Object.values(uploadedImages))){const source=imageSources.get(asset);if(source&&asset.background!==bg)flattenImage(asset,source,bg);}}
 async function prepareImage(file){
   if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw new Error('Escolha uma imagem PNG, JPG ou WebP.');
   if(file.size>12*1024*1024)throw new Error('A imagem deve ter até 12 MB.');
   const url=URL.createObjectURL(file);
   try{
-    const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Não foi possível abrir a imagem.'));im.src=url;});
-    const ratio=img.naturalWidth/img.naturalHeight,scale=Math.min(1,1800/Math.max(img.naturalWidth,img.naturalHeight)),canvas=document.createElement('canvas');
+    const img=await decodeImage(url);
+    const ratio=img.naturalWidth/img.naturalHeight,scale=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight)),canvas=document.createElement('canvas');
     canvas.width=Math.round(img.naturalWidth*scale);canvas.height=Math.round(img.naturalHeight*scale);
-    const ctx=canvas.getContext('2d');ctx.fillStyle=resolveTheme(state).bg;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
-    return {dataUrl:canvas.toDataURL('image/jpeg',.94),width:canvas.width,height:canvas.height,ratio,name:file.name.slice(0,160)};
+    const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    const asset={sourceDataUrl:canvas.toDataURL('image/png'),width:canvas.width,height:canvas.height,ratio,name:file.name.slice(0,160)};
+    imageSources.set(asset,canvas);flattenImage(asset,canvas,resolveTheme(state).bg);return asset;
   }finally{URL.revokeObjectURL(url);}
 }
-function updateUpload(){const has=!!uploadedImage;$('#upload-label').textContent=has?uploadedImage.name:'Adicionar minha arte';$('#remove-art').hidden=!has;}
-$('#art-upload').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{uploadedImage=await prepareImage(file);updateUpload();update();toast('Arte adicionada à frente e ao verso.');}catch(err){toast(err.message);}e.target.value='';});
-$('#remove-art').addEventListener('click',()=>{uploadedImage=null;updateUpload();update();});
-$('#reset').addEventListener('click',()=>{state={...DEFAULTS,windows:[...DEFAULTS.windows]};uploadedImage=null;setForm();updateUpload();update();toast('Uma folha em branco para sua próxima ideia.');});
-$('#save-project').addEventListener('click',()=>{downloadBytes(JSON.stringify({app:'dobra-atelie',version:1,config:state,image:uploadedImage},null,2),fileBase()+'.json','application/json');toast('Projeto salvo. Use “Abrir projeto” para continuar depois.');});
+function renderUploads(){
+  $('#face-uploads').innerHTML=FACES.map(f=>`<div class="face-art-card" data-art-face="${f.id}"><label class="face-upload" for="art-${f.id}"><span class="face-art-title">${f.name}</span><span class="face-art-preview"><img id="thumb-${f.id}" alt="Arte para ${f.name.toLowerCase()}" hidden><span id="empty-${f.id}">${icon('image')}</span></span><span class="face-art-action" id="action-${f.id}">Escolher imagem</span><span class="face-art-name" id="name-${f.id}">PNG · JPG · WebP</span></label><input id="art-${f.id}" type="file" class="sr-only face-art-input" data-face="${f.id}" accept="image/png,image/jpeg,image/webp"><button type="button" class="remove-face-art" data-remove-face="${f.id}" aria-label="Remover arte: ${f.name}" hidden>${icon('close')}</button></div>`).join('');
+}
+function renderTextControls(){
+  $('#face-texts').innerHTML=FACES.map(f=>`<label for="text-${f.id}">${f.name}<input id="text-${f.id}" type="text" maxlength="80" placeholder="Sem texto nesta face" value="${htmlEscape(state.texts[f.id])}"></label>`).join('');
+  $('#font-options').innerHTML=TEXT_FONTS.map(f=>`<button type="button" class="font-option" data-font="${f.id}" aria-label="Fonte ${f.name}" aria-pressed="false"><span class="font-sample">${fontSampleSVG(f.id)}</span><strong>${f.name}</strong></button>`).join('');
+}
+function renderTextSettings(){
+  $('#text-settings').hidden=!state.textEnabled;$('#text-size-value').textContent=state.textSize+' pt';
+  $$('[data-font]').forEach(b=>{const on=b.dataset.font===state.textFont;b.classList.toggle('selected',on);b.setAttribute('aria-pressed',String(on));});
+}
+$('#font-options').addEventListener('click',e=>{const b=e.target.closest('[data-font]');if(!b)return;state.textFont=b.dataset.font;update();});
+function updateUpload(){for(const face of FACES){const asset=uploadedImages[face.id],img=$('#thumb-'+face.id);img.hidden=!asset;$('#empty-'+face.id).hidden=!!asset;if(asset)img.src=asset.sourceDataUrl||asset.dataUrl;else img.removeAttribute('src');$('#action-'+face.id).textContent=asset?'Trocar imagem':'Escolher imagem';$('#name-'+face.id).textContent=asset?asset.name:'PNG · JPG · WebP';$(`[data-remove-face="${face.id}"]`).hidden=!asset;}}
+$('#face-uploads').addEventListener('change',async e=>{const input=e.target;if(!input.classList.contains('face-art-input'))return;const file=input.files[0],face=input.dataset.face;if(!file)return;const token=Symbol();uploadTokens[face]=token;$('#action-'+face).textContent='Carregando…';try{const asset=await prepareImage(file);if(uploadTokens[face]!==token)return;uploadedImages[face]=asset;updateUpload();update();toast(`Arte adicionada: ${FACES.find(f=>f.id===face).name.toLowerCase()}.`);}catch(err){toast(err.message);updateUpload();}finally{input.value='';}});
+$('#face-uploads').addEventListener('click',e=>{const b=e.target.closest('[data-remove-face]');if(!b)return;const face=b.dataset.removeFace;uploadTokens[face]=Symbol();delete uploadedImages[face];updateUpload();update();});
+function cancelImageUploads(){for(const face of FACES)uploadTokens[face.id]=Symbol();}
+$('#reset').addEventListener('click',()=>{cancelImageUploads();clearTimeout(colorTimer);state=normalizeConfig();uploadedImages={};themeExpanded=false;renderTextControls();setForm();updateUpload();update();toast('Uma folha em branco para sua próxima ideia.');});
+$('#save-project').addEventListener('click',()=>{clearTimeout(colorTimer);update();downloadBytes(JSON.stringify(projectData(state,uploadedImages),null,2),fileBase()+'.json','application/json');toast('Projeto salvo com as artes de cada face.');});
 $('#load-project').addEventListener('change',async e=>{
   const f=e.target.files[0];if(!f)return;
   try{
-    if(f.size>18*1024*1024)throw new Error('Arquivo de projeto muito grande.');
-    const doc=JSON.parse(await f.text());if(doc.app!=='dobra-atelie'||doc.version!==1||!doc.config)throw new Error('Este arquivo não é um projeto Dobra Ateliê.');
-    const next={...DEFAULTS};for(const key of Object.keys(DEFAULTS)){if(Object.hasOwn(doc.config,key))next[key]=doc.config[key];}
-    const checked=createModel(next);if(checked.config&&checked.config.description!==undefined)next.description=checked.config.description;
-    if(!Array.isArray(next.windows)||!next.windows.every(x=>['front','right','back','left'].includes(x)))throw new Error('Seleção de visores inválida.');
-    if(!THEMES.some(t=>t.id===next.theme)||!/^#[\da-f]{6}$/i.test(next.color))throw new Error('Tema ou cor inválida.');
-    if(checked.errors.some(msg=>msg.includes('intervalo permitido')||msg.includes('deve estar')||msg.includes('tampa válida')))throw new Error('Configurações de projeto inválidas.');
-    let image=null;
-    if(doc.image){
-      if(typeof doc.image.dataUrl!=='string'||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(doc.image.dataUrl))throw new Error('Imagem do projeto inválida.');
-      const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Imagem do projeto corrompida.'));im.src=doc.image.dataUrl;});
-      image={dataUrl:doc.image.dataUrl,width:img.naturalWidth,height:img.naturalHeight,ratio:img.naturalWidth/img.naturalHeight,name:String(doc.image.name||'Minha arte').slice(0,160)};
+    if(f.size>96*1024*1024)throw new Error('Arquivo de projeto muito grande.');
+    const doc=parseProject(JSON.parse(await f.text())),next=doc.config,images={},decoded=new Map();
+    for(const face of FACES){
+      const raw=doc.images[face.id];if(!raw)continue;
+      if(decoded.has(raw)){images[face.id]=decoded.get(raw);continue;}
+      const source=await decodeImage(raw.sourceDataUrl||raw.dataUrl);
+      if(source.naturalWidth>1800||source.naturalHeight>1800)throw new Error('Imagem de projeto acima do limite de resolução.');
+      const asset={width:source.naturalWidth,height:source.naturalHeight,ratio:source.naturalWidth/source.naturalHeight,name:String(raw.name||'Minha arte').slice(0,160),sourceDataUrl:raw.sourceDataUrl||null,dataUrl:raw.dataUrl};
+      imageSources.set(asset,source);flattenImage(asset,source,resolveTheme(next).bg);images[face.id]=asset;decoded.set(raw,asset);
     }
-    state=next;uploadedImage=image;setForm();updateUpload();update();toast('Projeto aberto. Pode continuar a criar!');
+    cancelImageUploads();clearTimeout(colorTimer);state=next;uploadedImages=images;renderTextControls();setForm();updateUpload();update();toast('Projeto aberto com as artes e os textos de cada face.');
   }catch(err){toast('Não foi possível abrir o projeto. '+err.message);}e.target.value='';
 });
 
@@ -196,9 +221,9 @@ function assemblyGuide(){
   const b=model.internal?`${cm(model.internal.h)} × ${cm(model.internal.w)} × ${cm(model.internal.d)} cm`:'';
   const t=LIDS.find(l=>l.id===state.lid)?.name;
   const lidHelp=state.lid==='cap'?'Una as abas dos cantos da tampa por dentro. Se as laterais vierem em peças separadas, cole as abas superiores sob o topo e depois una os cantos. A tampa veste o corpo por fora.':state.lid==='handle'?'Dobre a aba de cobertura e embuta a aba curta por dentro da frente. Dobre as duas pontas da alça e passe-as pelos dois rasgos da tampa, deixando as pontas ancoradas por baixo. A alça é decorativa.':'Dobre as abas laterais menores, feche a aba de cobertura e embuta a aba curta por dentro da frente.';
-  return `<div class="guide-meta"><strong>Sua caixa:</strong> ${htmlEscape(b)} de espaço interno<br><strong>Tampa:</strong> ${htmlEscape(t||'')} · <strong>Folhas:</strong> ${model.pages.length} A4</div><ol><li><strong>Prepare o papel.</strong> Imprima em A4 a 100%, em uma face. Use papel com rigidez adequada ao tamanho e peso da peça; 180 a 240 g/m² é um ponto de partida para protótipos pequenos. A espessura configurada ajusta as dimensões de dobra e a folga da tampa.</li><li><strong>Recorte e vinque.</strong> Linhas contínuas são cortes; tracejadas são vincos. Não corte as dobras. Se desligou os vincos no PDF, consulte a visualização com as linhas ativadas antes de montar.</li>${state.window?'<li><strong>Aplique os visores.</strong> Recorte as aberturas escolhidas. Corte o acrílico ou acetato nas medidas mostradas no painel, já com 5 mm extras em cada borda. Cole por dentro, mantendo as bordas longe das linhas de dobra. Prefira uma chapa fina compatível com o papel; a espessura do visor não é descontada do espaço interno.</li>':''}<li><strong>Una as faces.</strong> A sequência ao redor da caixa é frente → lateral direita → verso → lateral esquerda → frente. Cole a aba direita de cada face por dentro da próxima. Se houver uma tira de união separada, dobre-a ao meio e cole uma metade em cada face, por dentro.</li><li><strong>Una as abas separadas.</strong> Abas que precisaram sair em outra peça têm uma faixa branca de 1 cm. Cole essa faixa por dentro do corpo, alinhando a linha de vinco à borda superior ou inferior. A face maior do fundo, com um rasgo, pertence ao verso; a aba curta com lingueta pertence à frente. As abas trapezoidais menores são das laterais. Veja a identificação ao lado de cada folha na aba “Folhas A4”.</li><li><strong>Feche o fundo por encaixe.</strong> Dobre as duas abas laterais para dentro. Dobre a face maior do fundo, presa ao verso, sobre elas. Por último, dobre a aba curta da frente e empurre sua lingueta pelo rasgo do fundo. A trava fecha sem cola; as uniões laterais e as abas que saíram separadas usam cola.</li><li><strong>Finalize a tampa.</strong> ${lidHelp}</li></ol><p class="guide-notice">Faça uma montagem de teste antes da impressão final: papel, cola, visor e impressora alteram o ajuste físico. O molde mantém a escala real e nunca reduz uma face para fazê-la caber em A4.</p><h3>O que aparece na impressão?</h3><p>Somente a estampa, os contornos de corte e os vincos, quando ativados. Nomes de peças, medidas, instruções e numeração de folhas ficam apenas aqui no site. O tema digitado também não vira texto na embalagem.</p><h3>Seu projeto, com você</h3><p>As configurações são lembradas neste navegador. Para guardar também a imagem enviada ou transferir para outro dispositivo, use “Salvar projeto” e conserve o arquivo JSON.</p>`;
+  return `<div class="guide-meta"><strong>Sua caixa:</strong> ${htmlEscape(b)} de espaço interno<br><strong>Tampa:</strong> ${htmlEscape(t||'')} · <strong>Folhas:</strong> ${model.pages.length} A4</div><ol><li><strong>Prepare o papel.</strong> Imprima em A4 a 100%, em uma face. Use papel com rigidez adequada ao tamanho e peso da peça; 180 a 240 g/m² é um ponto de partida para protótipos pequenos. A espessura configurada ajusta as dimensões de dobra e a folga da tampa.</li><li><strong>Recorte e vinque.</strong> Linhas contínuas são cortes; tracejadas são vincos. Não corte as dobras. Se desligou os vincos no PDF, consulte a visualização com as linhas ativadas antes de montar.</li>${state.window?'<li><strong>Aplique os visores.</strong> Recorte as aberturas escolhidas. Corte o acrílico ou acetato nas medidas mostradas no painel, já com 5 mm extras em cada borda. Cole por dentro, mantendo as bordas longe das linhas de dobra. Prefira uma chapa fina compatível com o papel; a espessura do visor não é descontada do espaço interno.</li>':''}<li><strong>Una as faces.</strong> A sequência ao redor da caixa é frente → lateral direita → verso → lateral esquerda → frente. Cole a aba direita de cada face por dentro da próxima. Se houver uma tira de união separada, dobre-a ao meio e cole uma metade em cada face, por dentro.</li><li><strong>Una as abas separadas.</strong> Abas que precisaram sair em outra peça têm uma faixa branca de 1 cm. Cole essa faixa por dentro do corpo, alinhando a linha de vinco à borda superior ou inferior. A face maior do fundo, com um rasgo, pertence ao verso; a aba curta com lingueta pertence à frente. As abas trapezoidais menores são das laterais. Veja a identificação ao lado de cada folha na aba “Folhas A4”.</li><li><strong>Feche o fundo por encaixe.</strong> Dobre as duas abas laterais para dentro. Dobre a face maior do fundo, presa ao verso, sobre elas. Por último, dobre a aba curta da frente e empurre sua lingueta pelo rasgo do fundo. A trava fecha sem cola; as uniões laterais e as abas que saíram separadas usam cola.</li><li><strong>Finalize a tampa.</strong> ${lidHelp}</li></ol><p class="guide-notice">Faça uma montagem de teste antes da impressão final: papel, cola, visor e impressora alteram o ajuste físico. O molde mantém a escala real e nunca reduz uma face para fazê-la caber em A4.</p><h3>O que aparece na impressão?</h3><p>Somente a estampa, os textos que você escreveu, os contornos de corte e os vincos, quando ativados. Nomes de peças, medidas, instruções e numeração de folhas ficam apenas aqui no site. O tema digitado também não vira texto na embalagem.</p><h3>Seu projeto, com você</h3><p>As configurações são lembradas neste navegador. Para guardar também as quatro artes e os textos ou transferir para outro dispositivo, use “Salvar projeto” e conserve o arquivo JSON.</p>`;
 }
 $$('[data-help]').forEach(b=>b.addEventListener('click',()=>{$('#assembly-guide').innerHTML=assemblyGuide();$('#help-dialog').showModal();}));
 $$('[data-close-dialog]').forEach(b=>b.addEventListener('click',()=>$('#help-dialog').close()));
 $('#help-dialog').addEventListener('click',e=>{if(e.target===$('#help-dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
-setForm();renderThemes();updateUpload();update();
+renderTextControls();setForm();renderThemes();renderUploads();updateUpload();update();

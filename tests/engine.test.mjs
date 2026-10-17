@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createModel, createPDF, DEFAULTS, LIDS, THEMES, pageSVG, windowGeometry, placementMatrix, resolveTheme } from '../src/engine.js';
+import { readFile } from 'node:fs/promises';
+import { createModel, createPDF, DEFAULTS, LIDS, THEMES, FACES, TEXT_FONTS, layoutText, normalizeConfig, projectData, parseProject, pageSVG, windowGeometry, placementMatrix, resolveTheme } from '../src/engine.js';
 
 const epsilon=.006;
 const overlaps=(a,b)=>a.x<b.x+b.w-epsilon&&a.x+a.w>b.x+epsilon&&a.y<b.y+b.h-epsilon&&a.y+a.h>b.y+epsilon;
@@ -92,6 +93,59 @@ test('themes recognize descriptive input and preserve user palette',()=>{
   assert.equal(resolveTheme({...DEFAULTS,description:'Coelhinho'}).id,'bosque');
   assert.equal(resolveTheme({...DEFAULTS,description:'Festa da princesa'}).id,'festa');
   assert.equal(resolveTheme({...DEFAULTS,description:'Fé e amor'}).id,'jesus');
-  assert.equal(resolveTheme({...DEFAULTS,color:'#aabbcc'}).ink,'#aabbcc');
-  for(const theme of THEMES){const model=createModel({theme:theme.id,color:theme.ink});const pdf=new TextDecoder().decode(createPDF(model));assert.equal(pdf.includes('NaN'),false);}
+  assert.equal(resolveTheme({...DEFAULTS,detailColor:'#aabbcc'}).ink,'#aabbcc');
+  for(const theme of THEMES){const model=createModel({theme:theme.id,mainColor:theme.bg,detailColor:theme.ink});const pdf=new TextDecoder().decode(createPDF(model));assert.equal(pdf.includes('NaN'),false);}
+});
+test('background and details are independent, including legacy colour migration',()=>{
+  const a=createModel({mainColor:'#ddeeff',detailColor:'#334455'});
+  const b=createModel({mainColor:'#ffeecc',detailColor:'#334455'});
+  const c=createModel({mainColor:'#ddeeff',detailColor:'#aa4477'});
+  const face=m=>flatten(m.pieces.find(p=>p.id==='front').nodes);
+  assert.ok(face(a).some(n=>n.fill==='#ddeeff'));
+  assert.ok(face(b).some(n=>n.fill==='#ffeecc'));
+  assert.ok(face(a).some(n=>n.fill==='#334455'));
+  assert.ok(face(c).some(n=>n.fill==='#aa4477'));
+  assert.equal(c.theme.bg,a.theme.bg);assert.equal(b.theme.ink,a.theme.ink);
+  const migrated=normalizeConfig({theme:'bosque',color:'#123456'});
+  assert.equal(migrated.detailColor,'#123456');assert.equal(migrated.mainColor,THEMES.find(t=>t.id==='bosque').bg);
+});
+test('twenty theme collections have distinct motif families and recognize their names',()=>{
+  assert.equal(THEMES.length,20);assert.equal(new Set(THEMES.map(t=>t.motif)).size,20);
+  for(const [description,id] of [['Jardim de borboletas','borboletas'],['ursinho','ursinho'],['unicórnio','unicornio'],['Astronauta no espaço','astronauta'],['Sereia','sereia'],['Dinossauro','dinossauro'],['Fazendinha','fazendinha'],['Natal','natal']])assert.equal(resolveTheme({...DEFAULTS,description}).id,id);
+});
+test('four different uploads stay on their respective faces in scene graphs and PDF resources',async()=>{
+  const images=JSON.parse(await readFile(new URL('./fixtures/images.json',import.meta.url),'utf8'));
+  const m=createModel({},images);verifyPacking(m);
+  for(const {id}of FACES){const rendered=flatten(m.pieces.find(p=>p.id===id).nodes).filter(n=>n.type==='image');assert.equal(rendered.length,1);assert.equal(rendered[0].image,images[id]);}
+  const content=Buffer.from(createPDF(m)).toString('latin1');assert.equal((content.match(/\/Subtype \/Image/g)||[]).length,4);
+  const partial={...images};delete partial.left;
+  assert.equal(flatten(createModel({},partial).pieces.find(p=>p.id==='left').nodes).filter(n=>n.type==='image').length,0);
+});
+test('saving roundtrips both colours, four images and four texts; v1 projects remain usable',async()=>{
+  const images=JSON.parse(await readFile(new URL('./fixtures/images.json',import.meta.url),'utf8'));
+  const config={...DEFAULTS,mainColor:'#112233',detailColor:'#abcdef',textEnabled:true,textFont:'delicate',texts:{front:'Déborah',back:'João',left:'Liz',right:'Feito com amor'}};
+  const parsed=parseProject(JSON.parse(JSON.stringify(projectData(config,images))));
+  assert.deepEqual(parsed.images,images);assert.equal(parsed.config.mainColor,'#112233');assert.equal(parsed.config.detailColor,'#abcdef');assert.deepEqual(parsed.config.texts,config.texts);
+  const old=parseProject({app:'dobra-atelie',version:1,config:{height:19,color:'#456789'},image:images.front});
+  assert.equal(old.config.detailColor,'#456789');assert.equal(old.config.textEnabled,false);assert.equal(old.images.front,old.images.back);assert.equal(old.images.left,undefined);
+});
+test('optional text supports accents in every font and is absent from empty faces',()=>{
+  assert.equal(TEXT_FONTS.length,4);
+  for(const font of TEXT_FONTS){
+    const m=createModel({textEnabled:true,textFont:font.id,texts:{front:'Déborah & João — 2026 ♥',right:'Liz'}});verifyPacking(m);
+    const front=flatten(m.pieces.find(p=>p.id==='front').nodes),back=flatten(m.pieces.find(p=>p.id==='back').nodes);
+    assert.ok(front.some(n=>n.textGlyph));assert.ok(!back.some(n=>n.textGlyph));
+    assert.ok(createPDF(m).length>1000);
+  }
+  const disabled=createModel({textEnabled:false,texts:{front:'Não imprimir'}});
+  assert.ok(!flatten(disabled.pieces.flatMap(p=>p.nodes)).some(n=>n.textGlyph));
+});
+test('text layout avoids acrylic apertures and blocks text that cannot fit',()=>{
+  for(const textPosition of ['top','center','bottom']){
+    const m=createModel({window:true,windows:['front'],textEnabled:true,textPosition,texts:{front:'Liz Abreu'}});verifyPacking(m);
+    const t=layoutText(m.W,m.H,m.config,'front'),v=windowGeometry(m.W,m.H,m.config);
+    assert.ok(t.area.y+t.area.h<=v.y||t.area.y>=v.y+v.h,'Printed text is confined to the frame');
+  }
+  assert.ok(createModel({textEnabled:true,texts:{front:'🙂'}}).errors.some(e=>e.includes('fonte')));
+  assert.ok(createModel({height:3,width:3,depth:3,window:true,textEnabled:true,texts:{front:'W'.repeat(80)}}).errors.some(e=>e.includes('não cabe')));
 });
