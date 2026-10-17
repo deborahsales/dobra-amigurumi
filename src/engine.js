@@ -114,27 +114,28 @@ export function buildArtPrompt(input={},target='all') {
   const requested=c.description.trim()||theme.name;
   const height=(c.height+c.ease)*10+c.thickness,width=(c.width+c.ease)*10+c.thickness,depth=(c.depth+c.ease)*10+c.thickness;
   const format=n=>(Math.round(n*100)/100).toLocaleString('pt-BR',{maximumFractionDigits:2});
-  const selected=target==='all'?FACES:FACES.filter(f=>f.id===target);
+  const shared=target==='all',selected=shared?FACES:FACES.filter(f=>f.id===target);
+  const sharedSize=Math.min(width*.8,depth*.8,height*.55);
   const plan=selected.map((face,i)=>{
     const w=['front','back'].includes(face.id)?width:depth;
     if(c.window&&c.windows.includes(face.id)&&!windowGeometry(w,height,c))throw new Error('Confira a largura da moldura do visor antes de preparar o pedido de arte.');
     const areaW=Math.min(w*.8,height*.55),areaH=height*.55;
-    const role=face.id==='front'?'Ilustração principal e elemento central do tema.':face.id==='back'?'Composição complementar à frente, com uma pose ou elementos diferentes.':'Elementos complementares mais simples, mantendo a identidade da coleção.';
-    const window=c.window&&c.windows.includes(face.id)?` Esta face terá visor central de ${format((w-2*c.windowBorder*10)/10)} × ${format((height-2*c.windowBorder*10)/10)} cm. O centro será recortado: use somente detalhes discretos junto às bordas e deixe os elementos principais para faces sem visor.`:'';
-    return `${i+1}. ${face.name.toUpperCase()}: face final de ${format(w/10)} × ${format(height/10)} cm (largura × altura). A ilustração será centralizada numa área de até ${format(areaW/10)} × ${format(areaH/10)} cm. ${role}${window}`;
+    const window=c.window&&c.windows.includes(face.id)?` Esta face terá visor central de ${format((w-2*c.windowBorder*10)/10)} × ${format((height-2*c.windowBorder*10)/10)} cm. A abertura recortará a imagem aplicada, inclusive seus elementos centrais; não desenhe o visor na arte.`:'';
+    return `${i+1}. ${face.name.toUpperCase()}: face final de ${format(w/10)} × ${format(height/10)} cm (largura × altura). A ilustração será centralizada numa área de até ${format(areaW/10)} × ${format(areaH/10)} cm.${window}`;
   });
   return [
-    `Crie ${target==='all'?'uma coleção de quatro ilustrações originais':'uma ilustração original'} para decorar uma caixa de amigurumi.`,
+    shared?'Crie uma única ilustração original para ser repetida nas quatro faces de uma caixa de amigurumi. Quero apenas uma imagem, sem coleção, variações ou divisão em quatro partes.':'Crie uma ilustração original para decorar uma face de uma caixa de amigurumi.',
     `TEMA: ${requested}`,
     `ESTILO: ${style.instruction}`,
     `PALETA: fundo da caixa ${theme.bg}; detalhes ${theme.ink}. Use a cor dos detalhes como referência principal para os desenhos e tons harmoniosos com esse fundo.`,
-    'As imagens serão aplicadas sobre o fundo da caixa pelo site. Entregue o desenho com fundo realmente transparente, sem bloco branco e sem pintar o fundo na imagem.',
-    target==='all'?'Mantenha os mesmos personagens, paleta, acabamento e linguagem visual nas quatro artes; varie as poses e os elementos para que elas se complementem.':'Esta imagem pertence a uma coleção de quatro faces. Mantenha o mesmo personagem, paleta e acabamento nas próximas artes da coleção.',
-    '\nFACE FINAL E ÁREA DE APLICAÇÃO',
+    'A imagem será aplicada sobre o fundo da caixa pelo site. Entregue o desenho com fundo realmente transparente, sem bloco branco e sem pintar o fundo na imagem.',
+    shared?`Use uma composição quadrada (1:1), com o personagem ou os motivos do tema inteiros, bem centralizados e com respiro transparente nas bordas. Prefira poucos elementos legíveis em tamanho pequeno. A área quadrada de referência na face mais estreita é de até ${format(sharedSize/10)} × ${format(sharedSize/10)} cm.`:'Use uma composição centralizada, com os elementos inteiros e respiro transparente nas bordas. Preserve as proporções da área de aplicação.',
+    shared?'O site repetirá exatamente esta mesma imagem na frente, no verso e nas duas laterais, ajustando apenas seu tamanho proporcionalmente, sem esticar. A arte deve funcionar sozinha em cada face: sem panorama, continuidade entre bordas ou elementos que dependam das outras faces. Não desenhe quatro versões, quadrantes, painéis ou uma colagem.':'Esta imagem pode ser combinada com outras artes da mesma caixa. Mantenha o personagem, a paleta e o acabamento coerentes com o tema.',
+    '\nMEDIDAS DE REFERÊNCIA — NÃO DESENHAR NA IMAGEM',
     ...plan,
-    '\nARQUIVOS A ENTREGAR',
-    target==='all'?'Quatro arquivos PNG separados: frente.png, verso.png, lateral-esquerda.png e lateral-direita.png. Gere uma face por vez, se necessário. Nunca reúna as quatro artes em uma única imagem.':`Somente um arquivo PNG para a face ${selected[0].name.toLowerCase()}. Não inclua as outras faces nesta imagem.`,
-    'Prefira alta resolução, com pelo menos 1500 px no maior lado quando disponível. Preserve as proporções da área de aplicação e não corte os personagens.',
+    '\nARQUIVO A ENTREGAR',
+    shared?'Somente um arquivo PNG, chamado arte-unica.png, com uma única composição quadrada. Esta mesma imagem será reutilizada nas quatro faces; não entregue arquivos ou desenhos diferentes por face.':`Somente um arquivo PNG para a face ${selected[0].name.toLowerCase()}. Não inclua as outras faces nesta imagem.`,
+    'Prefira alta resolução, com pelo menos 1500 px no maior lado quando disponível. Não corte os personagens.',
     'Entregue somente a ilustração, sem caixa montada, simulação 3D de embalagem, molde, abas, linhas de corte, cotas, grades, colagem ou marcas de montagem.',
     'Não inclua letras, nomes, frases, números, logotipos nem marca-d’água. Os textos serão adicionados depois no próprio site, com a fonte escolhida.',
   ].join('\n\n');

@@ -40,7 +40,7 @@ const lidsArt={
 $$('[data-lid-art]').forEach(el=>el.innerHTML=`<svg viewBox="0 0 68 65" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round">${lidsArt[el.dataset.lidArt]}</svg>`);
 fillIcons();
 
-let state=normalizeConfig(),uploadedImages={},model,activeTab='box',toastTimer,colorTimer,themeExpanded=false;
+let state=normalizeConfig(),uploadedImages={},model,activeTab='box',toastTimer,colorTimer,themeExpanded=false,sharedUploadToken=null;
 const imageSources=new WeakMap(),uploadTokens={};
 const storageKey='dobra-atelie-v1';
 try {const saved=JSON.parse(localStorage.getItem(storageKey));if(saved&&typeof saved==='object')state=normalizeConfig(saved);}catch{}
@@ -186,7 +186,7 @@ async function prepareImage(file){
   }finally{URL.revokeObjectURL(url);}
 }
 function renderUploads(){
-  $('#face-uploads').innerHTML=FACES.map(f=>`<div class="face-art-card" data-art-face="${f.id}"><label class="face-upload" for="art-${f.id}"><span class="face-art-title">${f.name}</span><span class="face-art-preview"><img id="thumb-${f.id}" alt="Arte para ${f.name.toLowerCase()}" hidden><span id="empty-${f.id}">${icon('image')}</span></span><span class="face-art-action" id="action-${f.id}">Escolher imagem</span><span class="face-art-name" id="name-${f.id}">PNG · JPG · WebP</span></label><input id="art-${f.id}" type="file" class="sr-only face-art-input" data-face="${f.id}" accept="image/png,image/jpeg,image/webp"><button type="button" class="remove-face-art" data-remove-face="${f.id}" aria-label="Remover arte: ${f.name}" hidden>${icon('close')}</button></div>`).join('');
+  $('#face-uploads').innerHTML=FACES.map(f=>`<div class="face-art-card" data-art-face="${f.id}"><label class="face-upload" for="art-${f.id}"><span class="face-art-title">${f.name}</span><span class="face-art-preview"><img id="thumb-${f.id}" alt="Arte para ${f.name.toLowerCase()}" hidden><span id="empty-${f.id}">${icon('image')}</span></span><span class="face-art-action" id="action-${f.id}">Escolher imagem</span><span class="face-art-name" id="name-${f.id}">PNG · JPG · WebP</span></label><input id="art-${f.id}" type="file" class="sr-only face-art-input" data-face="${f.id}" accept="image/png,image/jpeg,image/webp"><button type="button" class="repeat-face-art" data-repeat-face="${f.id}" aria-label="Usar a arte de ${f.name.toLowerCase()} nas quatro faces" hidden>Usar nas quatro</button><button type="button" class="remove-face-art" data-remove-face="${f.id}" aria-label="Remover arte: ${f.name}" hidden>${icon('close')}</button></div>`).join('');
 }
 function renderArtPrompt(){
   try{$('#art-prompt-text').value=buildArtPrompt(state,$('#prompt-target').value);$('#copy-art-prompt').disabled=false;}
@@ -195,10 +195,11 @@ function renderArtPrompt(){
 $('#copy-art-prompt').addEventListener('click',async()=>{
   clearTimeout(colorTimer);readForm();update();if($('#copy-art-prompt').disabled)return;
   const field=$('#art-prompt-text');
-  try{await navigator.clipboard.writeText(field.value);toast('Pedido copiado. Cole no seu gerador de imagens e depois envie as artes aqui.');}
-  catch{field.focus();field.select();field.setSelectionRange(0,field.value.length);let copied=false;try{copied=document.execCommand('copy');}catch{}toast(copied?'Pedido copiado. Gere as imagens e envie uma por face.':'Pedido selecionado. Use a opção Copiar do seu navegador.');}
+  const success=$('#prompt-target').value==='all'?'Pedido copiado. Gere uma única arte e envie em “Uma imagem para todas”.':'Pedido copiado. Gere a arte e envie na face escolhida.';
+  try{await navigator.clipboard.writeText(field.value);toast(success);}
+  catch{field.focus();field.select();field.setSelectionRange(0,field.value.length);let copied=false;try{copied=document.execCommand('copy');}catch{}toast(copied?success:'Pedido selecionado. Use a opção Copiar do seu navegador.');}
 });
-$('#go-to-uploads').addEventListener('click',()=>{const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;$('#face-uploads').scrollIntoView({behavior:reduce?'auto':'smooth',block:'center'});$('#art-front').focus({preventScroll:true});});
+$('#go-to-uploads').addEventListener('click',()=>{const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches,shared=$('#prompt-target').value==='all';$(shared?'#shared-art-upload':'#face-uploads').scrollIntoView({behavior:reduce?'auto':'smooth',block:'center'});$(shared?'#art-all':'#art-'+$('#prompt-target').value).focus({preventScroll:true});});
 function renderTextControls(){
   $('#face-texts').innerHTML=FACES.map(f=>`<label for="text-${f.id}">${f.name}<input id="text-${f.id}" type="text" maxlength="80" placeholder="Sem texto nesta face" value="${htmlEscape(state.texts[f.id])}"></label>`).join('');
   $('#font-options').innerHTML=TEXT_FONTS.map(f=>`<button type="button" class="font-option" data-font="${f.id}" aria-label="Fonte ${f.name}" aria-pressed="false"><span class="font-sample">${fontSampleSVG(f.id)}</span><strong>${f.name}</strong></button>`).join('');
@@ -208,10 +209,28 @@ function renderTextSettings(){
   $$('[data-font]').forEach(b=>{const on=b.dataset.font===state.textFont;b.classList.toggle('selected',on);b.setAttribute('aria-pressed',String(on));});
 }
 $('#font-options').addEventListener('click',e=>{const b=e.target.closest('[data-font]');if(!b)return;state.textFont=b.dataset.font;update();});
-function updateUpload(){for(const face of FACES){const asset=uploadedImages[face.id],img=$('#thumb-'+face.id);img.hidden=!asset;$('#empty-'+face.id).hidden=!!asset;if(asset)img.src=asset.sourceDataUrl||asset.dataUrl;else img.removeAttribute('src');$('#action-'+face.id).textContent=asset?'Trocar imagem':'Escolher imagem';$('#name-'+face.id).textContent=asset?asset.name:'PNG · JPG · WebP';$(`[data-remove-face="${face.id}"]`).hidden=!asset;}}
+function updateUpload(){
+  $('#shared-art-action').textContent=sharedUploadToken?'Carregando arte…':'Uma imagem para todas';$('#art-all').disabled=!!sharedUploadToken;$('#shared-art-upload').setAttribute('aria-busy',String(!!sharedUploadToken));
+  for(const face of FACES){const asset=uploadedImages[face.id],img=$('#thumb-'+face.id);img.hidden=!asset;$('#empty-'+face.id).hidden=!!asset;if(asset)img.src=asset.sourceDataUrl||asset.dataUrl;else img.removeAttribute('src');$('#action-'+face.id).textContent=asset?'Trocar imagem':'Escolher imagem';$('#name-'+face.id).textContent=asset?asset.name:'PNG · JPG · WebP';$(`[data-remove-face="${face.id}"]`).hidden=!asset;$(`[data-repeat-face="${face.id}"]`).hidden=!asset;}
+}
+$('#art-all').addEventListener('change',async e=>{
+  const input=e.target,file=input.files[0];if(!file)return;
+  cancelImageUploads();const token=Symbol();sharedUploadToken=token;for(const face of FACES)uploadTokens[face.id]=token;updateUpload();
+  try{
+    const asset=await prepareImage(file),faces=FACES.filter(f=>uploadTokens[f.id]===token);
+    if(!faces.length)return;
+    for(const face of faces)uploadedImages[face.id]=asset;
+    updateUpload();update();toast(faces.length===4?'A mesma arte foi aplicada nas quatro faces.':`Arte aplicada em ${faces.length} ${faces.length===1?'face':'faces'}. As trocas individuais foram mantidas.`);
+  }catch(err){if(sharedUploadToken===token)toast(err.message);}
+  finally{if(sharedUploadToken===token){sharedUploadToken=null;input.value='';updateUpload();}}
+});
 $('#face-uploads').addEventListener('change',async e=>{const input=e.target;if(!input.classList.contains('face-art-input'))return;const file=input.files[0],face=input.dataset.face;if(!file)return;const token=Symbol();uploadTokens[face]=token;$('#action-'+face).textContent='Carregando…';try{const asset=await prepareImage(file);if(uploadTokens[face]!==token)return;uploadedImages[face]=asset;updateUpload();update();toast(`Arte adicionada: ${FACES.find(f=>f.id===face).name.toLowerCase()}.`);}catch(err){toast(err.message);updateUpload();}finally{input.value='';}});
-$('#face-uploads').addEventListener('click',e=>{const b=e.target.closest('[data-remove-face]');if(!b)return;const face=b.dataset.removeFace;uploadTokens[face]=Symbol();delete uploadedImages[face];updateUpload();update();});
-function cancelImageUploads(){for(const face of FACES)uploadTokens[face.id]=Symbol();}
+$('#face-uploads').addEventListener('click',e=>{
+  const repeat=e.target.closest('[data-repeat-face]');
+  if(repeat){const asset=uploadedImages[repeat.dataset.repeatFace];if(!asset)return;cancelImageUploads();uploadedImages=Object.fromEntries(FACES.map(f=>[f.id,asset]));updateUpload();update();toast('A mesma arte foi aplicada nas quatro faces.');return;}
+  const b=e.target.closest('[data-remove-face]');if(!b)return;const face=b.dataset.removeFace;uploadTokens[face]=Symbol();delete uploadedImages[face];updateUpload();update();
+});
+function cancelImageUploads(){sharedUploadToken=null;$('#art-all').value='';for(const face of FACES)uploadTokens[face.id]=Symbol();}
 $('#reset').addEventListener('click',()=>{cancelImageUploads();clearTimeout(colorTimer);state=normalizeConfig();uploadedImages={};themeExpanded=false;renderTextControls();setForm();updateUpload();update();toast('Uma folha em branco para sua próxima ideia.');});
 $('#save-project').addEventListener('click',()=>{clearTimeout(colorTimer);update();downloadBytes(JSON.stringify(projectData(state,uploadedImages),null,2),fileBase()+'.json','application/json');toast('Projeto salvo com as artes de cada face.');});
 $('#load-project').addEventListener('change',async e=>{

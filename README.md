@@ -57,8 +57,8 @@ Publique. Os próximos commits na branch de produção serão implantados pela i
 - Duas cores independentes: **cor principal** para o fundo da caixa e **cor dos detalhes** para desenhos, enfeites e textos. O modo de economia de tinta usa fundo branco durante a impressão/prévia sem apagar a cor escolhida.
 - Vinte coleções de arte vetorial: jardim, bosque, safari, céu, oceano, fé e afeto, festa, liso, ursinho, gatinho, cachorrinho, dinossauro, unicórnio, borboletas, abelhinhas, arco-íris, astronauta, sereia, Natal e fazendinha.
 - Texto de tema reconhecido por palavras-chave. Temas não reconhecidos mantêm a coleção escolhida e sugerem enviar uma imagem. **Não há geração por IA de qualquer tema livre.**
-- Pedido de arte preparado localmente a partir do tema digitado, cores, medidas e visores. Pode ser copiado para usar em um gerador externo de imagens, com opção de preparar as quatro faces ou uma por vez e cinco estilos de ilustração. O site não faz chamadas a uma API de IA.
-- Até quatro artes próprias PNG/JPG/WebP: uma na frente, uma no verso e uma em cada lateral, com troca e remoção independentes. O PNG original transparente é preservado; seu fundo é recomposto na cor atual ao gerar o PDF, que incorpora a arte como JPEG. Cada arquivo pode ter até 12 MB, e sua resolução é limitada a 1600 px no maior lado.
+- Pedido de arte preparado localmente a partir do tema digitado, cores, medidas e visores. Por padrão, pede uma única composição quadrada que será repetida nas quatro faces, sem colagem ou variações. Pode ser copiado para usar em um gerador externo de imagens; também permite preparar uma face específica e escolher entre cinco estilos. O site não faz chamadas a uma API de IA.
+- Uma arte própria PNG/JPG/WebP pode preencher as quatro faces com um único envio. O botão **Usar nas quatro** também reaproveita qualquer imagem já enviada. Até quatro artes diferentes continuam disponíveis, com troca e remoção independentes. A imagem é centralizada e ajustada proporcionalmente, sem deformação. O PNG original transparente é preservado; seu fundo é recomposto na cor atual ao gerar o PDF, que incorpora a arte como JPEG. Cada arquivo pode ter até 12 MB, e sua resolução é limitada a 1600 px no maior lado.
 - Textos opcionais e independentes nas quatro faces, até 80 caracteres por face. Quatro estilos: Clássica, Moderna, Delicada e Marcante. O usuário escolhe tamanho (9 a 30 pt) e posição (em cima, ao centro ou embaixo). O texto usa a cor dos detalhes e se ajusta automaticamente à largura disponível.
 - Nas faces com visor, os textos permanecem na moldura superior ou inferior. A opção central usa a moldura inferior. Se o texto não couber de forma legível, a exportação é bloqueada e o site pede para encurtá-lo ou ampliar a moldura.
 - Prévia tridimensional que gira, simulação dos visores, e prévia de cada folha A4.
@@ -78,11 +78,14 @@ O PDF declara páginas de 210 × 297 mm e preferência de impressão sem escala.
 ## Preparar uma arte sem integração paga
 
 1. Digite o tema desejado e escolha as cores.
-2. Abra **Preparar uma arte para meu tema**. Escolha o estilo e se quer preparar as quatro faces ou uma face específica.
+2. Abra **Preparar uma arte para meu tema**. Escolha o estilo e mantenha **Uma arte para todas**, que pede apenas uma imagem reutilizável.
 3. Clique em **Copiar pedido**. Use **Abrir ChatGPT** ou cole em outro gerador de imagens que você utiliza, conforme os recursos e limites da sua conta.
-4. Salve cada arte em um arquivo separado e envie nos campos de frente, verso e laterais. Use o pedido individual se a ferramenta gerar apenas uma imagem por vez.
+4. Salve a imagem gerada e envie em **Uma imagem para todas**. Ela será aplicada na frente, no verso e nas duas laterais. Se a imagem já estiver em uma face, clique em **Usar nas quatro** nesse cartão.
+5. Se quiser variar alguma face, troque somente a imagem daquele cartão. O pedido para uma face específica continua disponível.
 
-O pedido inclui as proporções usadas na aplicação, orientações para manter a coleção coerente, fundo transparente e cuidados com os visores. Não pede a geração de moldes, cotas ou textos: a geometria e a tipografia continuam a cargo do Dobra. O prompt não é incluído na impressão. Seu preparo não requer chave de API, cadastro adicional nem conexão automática com outro serviço. A geração das imagens ocorre fora do site, por ação do usuário.
+O pedido padrão descreve uma única composição quadrada, com elementos inteiros e margem transparente, que funciona sozinha em cada face. Evita panoramas, quadrantes, colagens e pedidos de quatro arquivos separados. As medidas indicam os limites de aplicação, e a arte se ajusta proporcionalmente mesmo quando a largura das laterais difere da frente. Nas faces com visor, a abertura recorta a imagem, inclusive elementos centrais; remova ou troque a arte nessas faces se necessário.
+
+O pedido não solicita moldes, cotas ou textos: a geometria e a tipografia continuam a cargo do Dobra. O prompt não é incluído na impressão. Seu preparo não requer chave de API, cadastro adicional nem conexão automática com outro serviço. A geração da imagem ocorre fora do site, por ação do usuário.
 
 ## Montagem e limites físicos
 
@@ -111,7 +114,7 @@ vercel.json               Configuração de deploy
 
 ## Verificação realizada
 
-Foram executados 19 testes automatizados de geometria, preservação de faces, limites A4, rotação sem escala, sobreposição, visores por face, posicionamento da trava, ausência de textos quando desligados, vinte temas, cores independentes, quatro imagens, migração de projetos, fontes com acentos e geração dos pedidos de arte. PDFs das tampas e de modelos com artes, textos e visores foram abertos por um leitor PDF independente; as páginas A4 e a renderização foram conferidas. Os textos opcionais são contornos vetoriais; não usam fontes externas nem dependem das fontes instaladas no dispositivo.
+Foram executados 21 testes automatizados de geometria, preservação de faces, limites A4, rotação sem escala, sobreposição, visores por face, posicionamento da trava, ausência de textos quando desligados, vinte temas, cores independentes, quatro imagens, uma arte repetida sem deformação, migração de projetos, fontes com acentos e geração dos pedidos de arte. PDFs das tampas e de modelos com artes, textos e visores foram abertos por um leitor PDF independente; as páginas A4 e a renderização foram conferidas. Os textos opcionais são contornos vetoriais; não usam fontes externas nem dependem das fontes instaladas no dispositivo.
 
 As fontes Dobra são subconjuntos derivados de DejaVu com a licença incluída em `FONT-LICENSE.txt`. `scripts/prepare-fonts.py` permite regenerá-los com FontTools e os arquivos DejaVu disponíveis localmente. Essa ferramenta de manutenção não é executada no build e não adiciona dependências Python ao deploy.
 

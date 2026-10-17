@@ -121,6 +121,22 @@ test('four different uploads stay on their respective faces in scene graphs and 
   const partial={...images};delete partial.left;
   assert.equal(flatten(createModel({},partial).pieces.find(p=>p.id==='left').nodes).filter(n=>n.type==='image').length,0);
 });
+test('one shared artwork fits four unequal faces without distortion and remains individually replaceable',async()=>{
+  const fixtures=JSON.parse(await readFile(new URL('./fixtures/images.json',import.meta.url),'utf8'));
+  const asset=fixtures.front,images=Object.fromEntries(FACES.map(f=>[f.id,asset]));
+  const m=createModel({width:12,depth:4},images);verifyPacking(m);
+  for(const {id}of FACES){
+    const image=flatten(m.pieces.find(p=>p.id===id).nodes).find(n=>n.type==='image'),w=['front','back'].includes(id)?m.W:m.D;
+    assert.equal(image.image,asset);assert.ok(Math.abs(image.w/image.h-asset.ratio)<epsilon);
+    assert.ok(image.w<=w*.8+epsilon);assert.ok(image.h<=m.H*.55+epsilon);
+    assert.ok(Math.abs(image.x-(w-image.w)/2)<epsilon);assert.ok(Math.abs(image.y-(m.H-image.h)/2)<epsilon);
+  }
+  assert.equal((Buffer.from(createPDF(m)).toString('latin1').match(/\/Subtype \/Image/g)||[]).length,1);
+  images.left=fixtures.left;delete images.right;
+  const changed=createModel({width:12,depth:4},images);
+  for(const {id}of FACES){const rendered=flatten(changed.pieces.find(p=>p.id===id).nodes).filter(n=>n.type==='image');assert.equal(rendered.length,id==='right'?0:1);if(rendered.length)assert.equal(rendered[0].image,id==='left'?fixtures.left:asset);}
+  const saved=parseProject(JSON.parse(JSON.stringify(projectData(DEFAULTS,images))));assert.deepEqual(saved.images,images);
+});
 test('saving roundtrips both colours, four images and four texts; v1 projects remain usable',async()=>{
   const images=JSON.parse(await readFile(new URL('./fixtures/images.json',import.meta.url),'utf8'));
   const config={...DEFAULTS,mainColor:'#112233',detailColor:'#abcdef',textEnabled:true,textFont:'delicate',texts:{front:'Déborah',back:'João',left:'Liz',right:'Feito com amor'}};
@@ -149,13 +165,20 @@ test('text layout avoids acrylic apertures and blocks text that cannot fit',()=>
   assert.ok(createModel({textEnabled:true,texts:{front:'🙂'}}).errors.some(e=>e.includes('fonte')));
   assert.ok(createModel({height:3,width:3,depth:3,window:true,textEnabled:true,texts:{front:'W'.repeat(80)}}).errors.some(e=>e.includes('não cabe')));
 });
-test('art request uses the exact custom theme, both colours, style and four face proportions',()=>{
+test('shared art request asks for one reusable square composition using the exact theme and palette',()=>{
   const prompt=buildArtPrompt({...DEFAULTS,description:'Raposinha enfermeira',mainColor:'#ddeeff',detailColor:'#335577',artPromptStyle:'watercolor',texts:{front:'Nome privado'}});
   assert.ok(prompt.includes('TEMA: Raposinha enfermeira'));assert.ok(prompt.includes('#ddeeff'));assert.ok(prompt.includes('#335577'));assert.ok(prompt.includes('Aquarela suave'));
   assert.ok(prompt.includes('8,53 × 19,53 cm'));assert.ok(prompt.includes('7,53 × 19,53 cm'));
-  for(const filename of ['frente.png','verso.png','lateral-esquerda.png','lateral-direita.png'])assert.ok(prompt.includes(filename));
+  assert.ok(prompt.startsWith('Crie uma única ilustração'));assert.ok(prompt.includes('composição quadrada (1:1)'));assert.ok(prompt.includes('repetirá exatamente esta mesma imagem'));assert.ok(prompt.includes('sem esticar'));
+  assert.ok(prompt.includes('6,02 × 6,02 cm'));assert.ok(prompt.includes('Somente um arquivo PNG, chamado arte-unica.png'));
+  for(const unwanted of ['frente.png','verso.png','lateral-esquerda.png','lateral-direita.png','coleção de quatro ilustrações','varie as poses'])assert.ok(!prompt.includes(unwanted));
   assert.ok(prompt.includes('fundo realmente transparente'));assert.ok(prompt.includes('Não inclua letras'));assert.ok(!prompt.includes('Nome privado'));
   const ink=buildArtPrompt({...DEFAULTS,mainColor:'#998866',ink:true});assert.ok(ink.includes('fundo da caixa #ffffff'));
+});
+test('shared art request preserves visor guidance and chooses a square that fits short boxes too',()=>{
+  const prompt=buildArtPrompt({height:3,width:12,depth:8,ease:0});assert.ok(prompt.includes('1,67 × 1,67 cm'));
+  const window=buildArtPrompt({...DEFAULTS,window:true,windows:['left']});assert.ok(window.includes('visor central de 5,13 × 17,13 cm'));assert.ok(window.includes('A abertura recortará a imagem'));assert.ok(window.includes('não desenhe o visor'));
+  assert.throws(()=>buildArtPrompt({depth:3,window:true,windows:['left'],windowBorder:3}),/moldura/);
 });
 test('one-face requests account for the selected visor and reject unusable measures',()=>{
   const prompt=buildArtPrompt({...DEFAULTS,window:true,windows:['right']},'right');
