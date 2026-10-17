@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#263f33">
+  <meta name="description" content="Crie caixas montáveis para amigurumi. Medidas personalizadas, temas, visores transparentes e moldes PDF em folhas A4, sem dividir as faces.">
+  <title>Dobra Ateliê — caixas feitas para o seu amigurumi</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23263f33'/%3E%3Cpath d='m20 8 12 7v13l-12 7-12-7V15zM8 15l12 7 12-7M20 22v13M14 12l12 7' fill='none' stroke='%23f5f0e7' stroke-width='1.8' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#configurador">Ir para o criador de caixas</a>
+  <header class="site-header">
+    <a class="brand" href="#" aria-label="Dobra Ateliê, início">
+      <span class="brand-mark" data-icon="box"></span>
+      <span class="brand-name">dobra<span>ATELIÊ DE CAIXAS</span></span>
+    </a>
+    <nav aria-label="Principal"><a href="#configurador" class="nav-active">Criar uma caixa</a><button class="text-button" data-help>Guia de montagem <span data-icon="arrow-up-right"></span></button></nav>
+    <span class="header-note"><span class="small-star">✳</span> Feito para o feito à mão.</span>
+  </header>
+  <main>
+    <section class="intro">
+      <div><p class="eyebrow"><span></span> DO SEU ATELIÊ PARA O MUNDO</p><h1>Seu carinho.<br>Uma caixa <em>à altura.</em></h1><p class="intro-copy">Você cria o amigurumi. A gente ajuda a vestir o presente.<br class="desktop-break"> Transforme medidas e ideias em uma caixa feita para ele.</p></div>
+      <div class="intro-side"><span class="intro-stamp" aria-hidden="true"><svg viewBox="0 0 100 100"><path d="M20 58c-5-28 16-39 30-15 15-25 39-9 29 13-6 12-19 22-29 30C37 76 25 69 20 58Z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m14 23 4 6m64-7-4 6M50 10v9M7 48h7m72 0h7" stroke="currentColor" stroke-width="1.5"/></svg><span>EMBALAR É CUIDAR</span></span><div class="benefits"><span><i data-icon="ruler"></i> Suas medidas</span><span><i data-icon="layers"></i> Faces inteiras em A4</span><span><i data-icon="lock"></i> Fundo de encaixe</span></div></div>
+    </section>
+
+    <section id="configurador" class="workspace" aria-label="Criador de caixas">
+      <form id="box-form" class="settings" novalidate>
+        <div class="settings-title"><h2>Vamos criar?</h2><button type="button" id="reset" class="icon-button" title="Recomeçar" aria-label="Restaurar configurações iniciais"><span data-icon="reset"></span></button></div>
+
+        <fieldset class="step"><legend><span class="step-number">01</span> As medidas do seu amigurumi</legend><p class="step-desc">Meça a peça pronta, incluindo braços e acessórios.</p>
+          <div class="dimension-fields">
+            <label for="height">Altura<div class="number-wrap"><input type="number" id="height" name="height" min="3" max="60" step="0.1" inputmode="decimal" value="19" required><span>cm</span></div></label>
+            <label for="width">Largura<div class="number-wrap"><input type="number" id="width" name="width" min="3" max="60" step="0.1" inputmode="decimal" value="8" required><span>cm</span></div></label>
+            <label for="depth">Profundidade<div class="number-wrap"><input type="number" id="depth" name="depth" min="3" max="60" step="0.1" inputmode="decimal" value="7" required><span>cm</span></div></label>
+          </div>
+          <div class="ease-row"><label for="ease">Um respiro para a peça <span class="hint" title="Essa medida é acrescentada à altura, largura e profundidade. Não é por lado.">ⓘ</span></label><select id="ease" name="ease"><option value="0">Sem folga</option><option value="0.3">+ 0,3 cm</option><option value="0.5" selected>+ 0,5 cm</option><option value="1">+ 1 cm</option><option value="1.5">+ 1,5 cm</option><option value="2">+ 2 cm</option></select></div>
+          <p id="inside-size" class="inside-size"><span data-icon="box"></span> Espaço interno: 19,5 × 8,5 × 7,5 cm</p>
+        </fieldset>
+
+        <fieldset class="step theme-step"><legend><span class="step-number">02</span> A personalidade da caixa</legend><p class="step-desc">Escolha uma coleção e deixe com o seu jeito.</p>
+          <div id="theme-grid" class="theme-grid" role="group" aria-label="Coleções de estampas"></div>
+          <label for="description" class="field-label custom-label">Tem outro tema em mente? <span>opcional</span></label>
+          <input id="description" name="description" type="text" maxlength="120" placeholder="Ex.: coelhinho, Jesus, flores, safari…" aria-describedby="theme-hint">
+          <p class="micro" id="theme-hint">Palavras reconhecidas selecionam uma coleção. Para uma arte específica, envie uma imagem.</p>
+          <div class="palette-row"><span>Cor principal</span><div class="swatches" id="swatches"></div><label class="custom-color" title="Escolher outra cor"><input type="color" id="color" name="color" value="#697e63" aria-label="Cor principal personalizada"><span data-icon="plus"></span></label></div>
+          <div class="upload-row"><label class="upload-button" for="art-upload"><span data-icon="image"></span><span id="upload-label">Adicionar minha arte</span><span class="file-kind">PNG / JPG</span></label><input id="art-upload" type="file" accept="image/png,image/jpeg,image/webp" class="sr-only"><button type="button" class="icon-button remove-art" id="remove-art" hidden aria-label="Remover arte enviada"><span data-icon="close"></span></button></div>
+        </fieldset>
+
+        <fieldset class="step"><legend><span class="step-number">03</span> O jeito de fechar</legend><p class="step-desc">O fundo sempre fecha com lingueta e encaixe.</p>
+          <div class="lid-grid" role="group" aria-label="Tipo de tampa">
+            <button type="button" class="lid-option selected" data-lid="tuck" aria-pressed="true"><span data-lid-art="tuck"></span><strong>De embutir</strong><small>Clássica e prática</small><i class="selection-dot"></i></button>
+            <button type="button" class="lid-option" data-lid="cap" aria-pressed="false"><span data-lid-art="cap"></span><strong>Separada</strong><small>Abre por cima</small><i class="selection-dot"></i></button>
+            <button type="button" class="lid-option" data-lid="handle" aria-pressed="false"><span data-lid-art="handle"></span><strong>Com alça</strong><small>Um toque de presente</small><i class="selection-dot"></i></button>
+          </div>
+        </fieldset>
+
+        <fieldset class="step visor-step"><legend><span class="step-number">04</span> Deixe o seu trabalho aparecer</legend>
+          <label class="switch-row" for="window"><span><strong>Visor transparente</strong><small>Recortes para aplicar acrílico ou acetato.</small></span><input id="window" name="window" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label>
+          <div id="visor-settings" class="visor-settings" hidden>
+            <span class="field-label">Em quais faces?</span><div class="face-choices"><label><input type="checkbox" value="front" name="windows" checked> Frente</label><label><input type="checkbox" value="right" name="windows"> Lateral direita</label><label><input type="checkbox" value="left" name="windows"> Lateral esquerda</label><label><input type="checkbox" value="back" name="windows"> Verso</label></div>
+            <div class="border-label"><label for="windowBorder">Largura da moldura</label><output id="border-value" for="windowBorder">1,2 cm</output></div><input type="range" name="windowBorder" id="windowBorder" min="0.6" max="3" step="0.1" value="1.2">
+            <div id="visor-sizes" class="visor-sizes"></div><p class="micro">As medidas do material transparente incluem 5 mm de sobreposição por borda para colar por dentro.</p>
+          </div>
+        </fieldset>
+
+        <details class="advanced"><summary><span data-icon="sliders"></span> Ajustes de impressão <span data-icon="chevron"></span></summary><div class="advanced-content"><label class="switch-row compact" for="folds"><span>Mostrar linhas de vinco</span><input id="folds" name="folds" type="checkbox" role="switch" checked><span class="switch-track" aria-hidden="true"></span></label><label class="switch-row compact" for="ink"><span>Economizar tinta no fundo</span><input id="ink" name="ink" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label><div class="advanced-fields"><label for="thickness">Espessura do papel<div class="number-wrap"><input id="thickness" name="thickness" type="number" min="0.1" max="1" step="0.1" value="0.3"><span>mm</span></div></label><label for="margin">Margem A4<div class="number-wrap"><input id="margin" name="margin" type="number" min="3" max="15" step="1" value="6"><span>mm</span></div></label></div></div></details>
+        <div class="local-note"><span data-icon="shield"></span><span>Suas criações ficam no seu navegador.<br>Nenhuma imagem é enviada para um servidor.</span></div>
+      </form>
+
+      <div class="preview-column">
+        <section class="preview-card" aria-label="Prévia da caixa">
+          <div class="preview-toolbar"><div class="tabs" role="tablist" aria-label="Visualização"><button type="button" role="tab" id="tab-box" aria-selected="true" aria-controls="panel-box" class="active"><span data-icon="box"></span> Sua caixa</button><button type="button" role="tab" id="tab-pages" aria-selected="false" aria-controls="panel-pages" tabindex="-1"><span data-icon="pages"></span> Folhas A4 <span id="page-count-tab" class="tab-count">3</span></button></div><span class="live-label"><i></i> PRÉVIA AO VIVO</span></div>
+          <div id="panel-box" class="preview-stage" role="tabpanel" aria-labelledby="tab-box">
+            <div class="stage-note"><span class="tiny-cross">+</span> <span id="collection-name">COLEÇÃO JARDIM DELICADO</span></div>
+            <div class="box-floor" aria-hidden="true"></div>
+            <div class="scene" id="scene" role="img" aria-label="Prévia tridimensional da caixa personalizada"><div class="box-3d" id="box-3d"></div></div>
+            <div class="size-label size-height" id="height-label">19,5 cm</div><div class="size-label size-width" id="width-label">8,5 cm</div>
+            <div class="stage-caption"><span class="stage-caption-line"></span> Feita sob medida para o seu afeto.</div>
+            <div class="rotation-control"><span data-icon="rotate"></span><label for="rotation" class="sr-only">Girar a prévia tridimensional</label><input type="range" id="rotation" min="-180" max="180" step="1" value="-28"><button type="button" id="rotation-reset" class="text-button" aria-label="Restaurar ângulo da caixa">Girar a caixa</button></div>
+          </div>
+          <div id="panel-pages" class="pages-stage" role="tabpanel" aria-labelledby="tab-pages" hidden><div class="pages-intro"><span>Seu molde, folha por folha.</span><small>210 × 297 mm · escala 1:1</small></div><div id="pages-grid" class="pages-grid"></div><div class="line-legend"><span><i></i> Corte</span><span><i class="dash"></i> Vinco</span><span>Abas sem estampa ficam por dentro.</span></div></div>
+          <div class="preview-footer"><span><i data-icon="check-circle"></i> Faces preservadas</span><span><i data-icon="lock"></i> Fundo de encaixe</span><button type="button" class="text-button" data-help>Como montar <span data-icon="arrow-right"></span></button></div>
+        </section>
+
+        <div id="model-errors" class="model-errors" role="alert" hidden></div>
+        <div id="model-notices" class="model-notices" hidden></div>
+        <section class="export-card" aria-label="Exportar o molde"><div class="export-info"><span class="export-icon" data-icon="file-download"></span><div><h3>Prontinha para sair do papel.</h3><p id="export-summary">PDF vetorial · A4 · escala real</p></div></div><button type="button" class="primary-button" id="download"><span data-icon="download"></span> Baixar molde em PDF <span data-icon="arrow-right"></span></button><div class="export-foot"><span><i data-icon="check"></i> Sem textos na embalagem</span><span><i data-icon="check"></i> Sem reduzir as medidas</span></div></section>
+        <div class="print-tip"><span data-icon="printer"></span><p>Na hora de imprimir, escolha <strong>“Tamanho real” ou 100%</strong>, papel A4 e impressão em uma face. Desative cabeçalhos e rodapés se usar a opção de impressão do navegador.</p></div>
+        <div class="project-tools"><button type="button" id="save-project" class="text-button"><span data-icon="save"></span> Salvar projeto</button><label for="load-project" class="text-button"><span data-icon="folder"></span> Abrir projeto</label><input id="load-project" type="file" accept=".json,application/json" class="sr-only"><button type="button" class="text-button" id="print"><span data-icon="printer"></span> Imprimir</button></div>
+      </div>
+    </section>
+
+    <section class="process"><div><p class="eyebrow">DO MOLDE AO PRESENTE</p><h2>Um pouquinho de papel.<br><em>Um montão de carinho.</em></h2></div><ol><li><span>01</span><div><h3>Imprima e recorte</h3><p>A4, tamanho real. As linhas contínuas mostram onde cortar.</p></div></li><li><span>02</span><div><h3>Vinque e una as faces</h3><p>Cole as abas pelo lado de dentro. A estampa fica do lado de fora.</p></div></li><li><span>03</span><div><h3>Encaixe e presenteie</h3><p>Feche o fundo com a lingueta, coloque sua peça e finalize a tampa.</p></div></li></ol></section>
+  </main>
+  <footer class="site-footer"><span class="brand-footer">dobra<span>ateliê</span></span><p>Para tudo que é feito com as mãos e com o coração.</p><button class="text-button" data-help>Cuidados e montagem <span data-icon="arrow-up-right"></span></button></footer>
+  <div id="toast" role="status" class="toast" hidden></div>
+  <dialog id="help-dialog" aria-labelledby="help-title"><div class="dialog-head"><span class="eyebrow">SEU GUIA DE BANCADA</span><button type="button" class="icon-button" data-close-dialog aria-label="Fechar guia"><span data-icon="close"></span></button></div><h2 id="help-title">Hora de dar forma<br><em>ao seu carinho.</em></h2><div id="assembly-guide"></div><button type="button" class="primary-button" data-close-dialog>Vamos criar <span data-icon="arrow-right"></span></button></dialog>
+  <noscript>Ative o JavaScript no navegador para criar a caixa, ver a prévia e gerar o molde PDF.</noscript>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
