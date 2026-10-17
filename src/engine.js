@@ -1,8 +1,15 @@
 import { FONT_LIBRARY } from './fonts.js';
 /* All manufacturing geometry is expressed in millimetres. No DOM dependencies. */
-export const DEFAULTS = Object.freeze({ height: 19, width: 8, depth: 7, ease: 0.5, thickness: 0.3, margin: 6, theme: 'botanico', description: '', lid: 'tuck', mainColor: '#f5f1e5', detailColor: '#6c8267', folds: true, window: false, windows: ['front'], windowBorder: 1.2, ink: false, textEnabled:false, texts:{front:'',back:'',left:'',right:''},textFont:'classic',textSize:16,textPosition:'bottom' });
+export const DEFAULTS = Object.freeze({ height: 19, width: 8, depth: 7, ease: 0.5, thickness: 0.3, margin: 6, theme: 'botanico', description: '', lid: 'tuck', mainColor: '#f5f1e5', detailColor: '#6c8267', folds: true, window: false, windows: ['front'], windowBorder: 1.2, ink: false, textEnabled:false, texts:{front:'',back:'',left:'',right:''},textFont:'classic',textSize:16,textPosition:'bottom',artPromptStyle:'flat' });
 export const FACES = Object.freeze([{id:'front',name:'Frente'},{id:'back',name:'Verso'},{id:'left',name:'Lateral esquerda'},{id:'right',name:'Lateral direita'}]);
 export const TEXT_FONTS = Object.freeze(FONT_LIBRARY.map(({id,name})=>({id,name})));
+export const ART_STYLES = Object.freeze([
+  {id:'flat',name:'Ilustração delicada',instruction:'Ilustração delicada, formas suaves, cores sólidas e acabamento limpo, como uma coleção de papelaria artesanal.'},
+  {id:'watercolor',name:'Aquarela suave',instruction:'Aquarela suave com textura sutil de pintura, bordas delicadas e contornos legíveis na impressão.'},
+  {id:'storybook',name:'Livro infantil',instruction:'Ilustração original de livro infantil, acolhedora, com traços expressivos e composição simples.'},
+  {id:'toy',name:'Personagem 3D',instruction:'Ilustração 3D de personagem com aparência de brinquedo, formas arredondadas, luz suave e materiais foscos. Sem cenário ou base de apoio.'},
+  {id:'line',name:'Traço minimalista',instruction:'Desenho minimalista com linhas limpas, traço contínuo legível e poucos detalhes, adequado para papelaria.'},
+]);
 export const THEMES = Object.freeze([
   { id: 'botanico', name: 'Jardim delicado', short: 'Jardim', bg: '#f5f1e5', ink: '#6c8267', accent: '#c99579', motif: 'flower', keywords: ['flor', 'jardim', 'botanic', 'planta', 'verde', 'natureza'] },
   { id: 'bosque', name: 'Amigos do bosque', short: 'Bosque', bg: '#f4eade', ink: '#8c735d', accent: '#b6b997', motif: 'bunny', keywords: ['coelh', 'pascoa', 'bosque', 'floresta'] },
@@ -89,6 +96,7 @@ export function validateConfig(input) {
   }
   if (!LIDS.some(l=>l.id === c.lid)) errors.push('Escolha uma tampa válida.');
   if (!THEMES.some(t=>t.id===c.theme))errors.push('Escolha um tema válido.');
+  if (!ART_STYLES.some(s=>s.id===c.artPromptStyle))errors.push('Escolha um estilo válido para o pedido de arte.');
   if (!hexOK(c.mainColor||'')||!hexOK(c.detailColor||''))errors.push('Escolha cores válidas para o fundo e os detalhes.');
   const font=FONT_LIBRARY.find(f=>f.id===c.textFont);
   if(!font)errors.push('Escolha uma fonte válida.');
@@ -97,6 +105,39 @@ export function validateConfig(input) {
   c.description = String(c.description || '').slice(0,120);
   c.windows = Array.isArray(c.windows) ? [...new Set(c.windows.filter(x=>['front','right','back','left'].includes(x)))] : ['front'];
   return {config:c, errors};
+}
+export function buildArtPrompt(input={},target='all') {
+  const {config:c,errors}=validateConfig({...input,textEnabled:false});
+  if(errors.length)throw new Error('Confira as medidas, as cores e as opções da caixa antes de preparar o pedido.');
+  if(target!=='all'&&!FACES.some(f=>f.id===target))throw new Error('Escolha uma face válida.');
+  const theme=resolveTheme(c),style=ART_STYLES.find(s=>s.id===c.artPromptStyle);
+  const requested=c.description.trim()||theme.name;
+  const height=(c.height+c.ease)*10+c.thickness,width=(c.width+c.ease)*10+c.thickness,depth=(c.depth+c.ease)*10+c.thickness;
+  const format=n=>(Math.round(n*100)/100).toLocaleString('pt-BR',{maximumFractionDigits:2});
+  const selected=target==='all'?FACES:FACES.filter(f=>f.id===target);
+  const plan=selected.map((face,i)=>{
+    const w=['front','back'].includes(face.id)?width:depth;
+    if(c.window&&c.windows.includes(face.id)&&!windowGeometry(w,height,c))throw new Error('Confira a largura da moldura do visor antes de preparar o pedido de arte.');
+    const areaW=Math.min(w*.8,height*.55),areaH=height*.55;
+    const role=face.id==='front'?'Ilustração principal e elemento central do tema.':face.id==='back'?'Composição complementar à frente, com uma pose ou elementos diferentes.':'Elementos complementares mais simples, mantendo a identidade da coleção.';
+    const window=c.window&&c.windows.includes(face.id)?` Esta face terá visor central de ${format((w-2*c.windowBorder*10)/10)} × ${format((height-2*c.windowBorder*10)/10)} cm. O centro será recortado: use somente detalhes discretos junto às bordas e deixe os elementos principais para faces sem visor.`:'';
+    return `${i+1}. ${face.name.toUpperCase()}: face final de ${format(w/10)} × ${format(height/10)} cm (largura × altura). A ilustração será centralizada numa área de até ${format(areaW/10)} × ${format(areaH/10)} cm. ${role}${window}`;
+  });
+  return [
+    `Crie ${target==='all'?'uma coleção de quatro ilustrações originais':'uma ilustração original'} para decorar uma caixa de amigurumi.`,
+    `TEMA: ${requested}`,
+    `ESTILO: ${style.instruction}`,
+    `PALETA: fundo da caixa ${theme.bg}; detalhes ${theme.ink}. Use a cor dos detalhes como referência principal para os desenhos e tons harmoniosos com esse fundo.`,
+    'As imagens serão aplicadas sobre o fundo da caixa pelo site. Entregue o desenho com fundo realmente transparente, sem bloco branco e sem pintar o fundo na imagem.',
+    target==='all'?'Mantenha os mesmos personagens, paleta, acabamento e linguagem visual nas quatro artes; varie as poses e os elementos para que elas se complementem.':'Esta imagem pertence a uma coleção de quatro faces. Mantenha o mesmo personagem, paleta e acabamento nas próximas artes da coleção.',
+    '\nFACE FINAL E ÁREA DE APLICAÇÃO',
+    ...plan,
+    '\nARQUIVOS A ENTREGAR',
+    target==='all'?'Quatro arquivos PNG separados: frente.png, verso.png, lateral-esquerda.png e lateral-direita.png. Gere uma face por vez, se necessário. Nunca reúna as quatro artes em uma única imagem.':`Somente um arquivo PNG para a face ${selected[0].name.toLowerCase()}. Não inclua as outras faces nesta imagem.`,
+    'Prefira alta resolução, com pelo menos 1500 px no maior lado quando disponível. Preserve as proporções da área de aplicação e não corte os personagens.',
+    'Entregue somente a ilustração, sem caixa montada, simulação 3D de embalagem, molde, abas, linhas de corte, cotas, grades, colagem ou marcas de montagem.',
+    'Não inclua letras, nomes, frases, números, logotipos nem marca-d’água. Os textos serão adicionados depois no próprio site, com a fonte escolhida.',
+  ].join('\n\n');
 }
 export function windowGeometry(w,h,config) {
   const border=config.windowBorder*10;

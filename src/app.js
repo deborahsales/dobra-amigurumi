@@ -1,4 +1,4 @@
-import { DEFAULTS, THEMES, LIDS, FACES, TEXT_FONTS, fontSampleSVG, normalizeConfig, projectData, parseProject, createModel, resolveTheme, faceSVG, nodesToSVG, artNodes, pageSVG, createPDF, windowGeometry } from './engine.js';
+import { DEFAULTS, THEMES, LIDS, FACES, TEXT_FONTS, ART_STYLES, buildArtPrompt, fontSampleSVG, normalizeConfig, projectData, parseProject, createModel, resolveTheme, faceSVG, nodesToSVG, artNodes, pageSVG, createPDF, windowGeometry } from './engine.js';
 
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const htmlEscape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -26,6 +26,8 @@ const icons={
   printer:'<path d="M7 8V3h10v5M7 17H3V9h18v8h-4M7 14h10v8H7zM17 11h1"/>',
   save:'<path d="M4 3h13l4 4v14H3V3zM7 3v6h10V3M7 21v-8h10v8"/>',
   folder:'<path d="M3 7V4h7l3 3h8v13H3zM3 10h18"/>',
+  sparkles:'<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5zM20 2v4m-2-2h4"/>',
+  copy:'<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V3H3v13h5"/>',
   info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/>',
 };
 const icon=name=>`<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]||icons.box}</svg>`;
@@ -60,6 +62,7 @@ function readForm(){
   state.mainColor=$('#mainColor').value;state.detailColor=$('#detailColor').value;state.description=$('#description').value;
   state.windows=$$('input[name=windows]:checked').map(el=>el.value);
   state.textPosition=$('#textPosition').value;
+  state.artPromptStyle=$('#artPromptStyle').value;
   state.texts=Object.fromEntries(FACES.map(f=>[f.id,$('#text-'+f.id).value]));
 }
 function renderThemes(){
@@ -122,7 +125,7 @@ function update(){
   $('#inside-size').innerHTML=icon('box')+' Espaço interno: '+(model.internal?[model.internal.h,model.internal.w,model.internal.d].map(cm).join(' × ')+' cm':'informe as três medidas');
   $$('[data-theme]').forEach(btn=>{const on=btn.dataset.theme===resolveTheme(state).id;btn.classList.toggle('selected',on);btn.setAttribute('aria-pressed',String(on));});
   $$('[data-lid]').forEach(btn=>{const on=btn.dataset.lid===state.lid;btn.classList.toggle('selected',on);btn.setAttribute('aria-pressed',String(on));});
-  renderSwatches();renderThemeExpansion();renderBox();renderVisors();renderTextSettings();
+  renderSwatches();renderThemeExpansion();renderBox();renderVisors();renderTextSettings();renderArtPrompt();
   if(activeTab==='pages')renderSheets();
   const errs=[...model.errors];if(state.window&&!state.windows.length)errs.push('Escolha pelo menos uma face para o visor ou desative a opção de visor transparente.');
   $('#model-errors').innerHTML=errs.map(e=>`<p>${htmlEscape(e)}</p>`).join('');$('#model-errors').hidden=!errs.length;
@@ -131,7 +134,7 @@ function update(){
   $('#page-count-tab').textContent=model.pages.length||'—';
   $('#export-summary').textContent=errs.length?'Ajuste as opções para gerar o PDF':`${model.pages.length} folhas A4 · PDF vetorial · escala 1:1`;
   const typed=state.description.trim();const theme=resolveTheme(state);
-  $('#theme-hint').textContent=typed?(theme.customMatched?`Tema reconhecido: ${theme.name}. O tema orienta a estampa e não é impresso como texto.`:`Usando a coleção ${theme.name}. Para representar “${typed}” com fidelidade, envie a sua arte.`):'Palavras reconhecidas selecionam uma coleção. Para uma arte específica, envie uma imagem.';
+  $('#theme-hint').textContent=typed?(theme.customMatched?`Tema reconhecido: ${theme.name}. Use “Preparar uma arte” para criar um pedido personalizado.`:`Usando a coleção ${theme.name}. Para representar “${typed}”, prepare o pedido de arte abaixo e depois envie suas imagens.`):'Escolha uma coleção ou escreva o tema para preparar um pedido de arte personalizado.';
   persist();
 }
 $('#box-form').addEventListener('submit',e=>e.preventDefault());
@@ -185,6 +188,17 @@ async function prepareImage(file){
 function renderUploads(){
   $('#face-uploads').innerHTML=FACES.map(f=>`<div class="face-art-card" data-art-face="${f.id}"><label class="face-upload" for="art-${f.id}"><span class="face-art-title">${f.name}</span><span class="face-art-preview"><img id="thumb-${f.id}" alt="Arte para ${f.name.toLowerCase()}" hidden><span id="empty-${f.id}">${icon('image')}</span></span><span class="face-art-action" id="action-${f.id}">Escolher imagem</span><span class="face-art-name" id="name-${f.id}">PNG · JPG · WebP</span></label><input id="art-${f.id}" type="file" class="sr-only face-art-input" data-face="${f.id}" accept="image/png,image/jpeg,image/webp"><button type="button" class="remove-face-art" data-remove-face="${f.id}" aria-label="Remover arte: ${f.name}" hidden>${icon('close')}</button></div>`).join('');
 }
+function renderArtPrompt(){
+  try{$('#art-prompt-text').value=buildArtPrompt(state,$('#prompt-target').value);$('#copy-art-prompt').disabled=false;}
+  catch(err){$('#art-prompt-text').value=err.message;$('#copy-art-prompt').disabled=true;}
+}
+$('#copy-art-prompt').addEventListener('click',async()=>{
+  clearTimeout(colorTimer);readForm();update();if($('#copy-art-prompt').disabled)return;
+  const field=$('#art-prompt-text');
+  try{await navigator.clipboard.writeText(field.value);toast('Pedido copiado. Cole no seu gerador de imagens e depois envie as artes aqui.');}
+  catch{field.focus();field.select();field.setSelectionRange(0,field.value.length);let copied=false;try{copied=document.execCommand('copy');}catch{}toast(copied?'Pedido copiado. Gere as imagens e envie uma por face.':'Pedido selecionado. Use a opção Copiar do seu navegador.');}
+});
+$('#go-to-uploads').addEventListener('click',()=>{const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;$('#face-uploads').scrollIntoView({behavior:reduce?'auto':'smooth',block:'center'});$('#art-front').focus({preventScroll:true});});
 function renderTextControls(){
   $('#face-texts').innerHTML=FACES.map(f=>`<label for="text-${f.id}">${f.name}<input id="text-${f.id}" type="text" maxlength="80" placeholder="Sem texto nesta face" value="${htmlEscape(state.texts[f.id])}"></label>`).join('');
   $('#font-options').innerHTML=TEXT_FONTS.map(f=>`<button type="button" class="font-option" data-font="${f.id}" aria-label="Fonte ${f.name}" aria-pressed="false"><span class="font-sample">${fontSampleSVG(f.id)}</span><strong>${f.name}</strong></button>`).join('');
@@ -226,4 +240,5 @@ function assemblyGuide(){
 $$('[data-help]').forEach(b=>b.addEventListener('click',()=>{$('#assembly-guide').innerHTML=assemblyGuide();$('#help-dialog').showModal();}));
 $$('[data-close-dialog]').forEach(b=>b.addEventListener('click',()=>$('#help-dialog').close()));
 $('#help-dialog').addEventListener('click',e=>{if(e.target===$('#help-dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
+$('#artPromptStyle').innerHTML=ART_STYLES.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
 renderTextControls();setForm();renderThemes();renderUploads();updateUpload();update();

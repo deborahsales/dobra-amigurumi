@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createModel, createPDF, DEFAULTS, LIDS, THEMES, FACES, TEXT_FONTS, layoutText, normalizeConfig, projectData, parseProject, pageSVG, windowGeometry, placementMatrix, resolveTheme } from '../src/engine.js';
+import { createModel, createPDF, DEFAULTS, LIDS, THEMES, FACES, TEXT_FONTS, ART_STYLES, buildArtPrompt, layoutText, normalizeConfig, projectData, parseProject, pageSVG, windowGeometry, placementMatrix, resolveTheme } from '../src/engine.js';
 
 const epsilon=.006;
 const overlaps=(a,b)=>a.x<b.x+b.w-epsilon&&a.x+a.w>b.x+epsilon&&a.y<b.y+b.h-epsilon&&a.y+a.h>b.y+epsilon;
@@ -148,4 +148,24 @@ test('text layout avoids acrylic apertures and blocks text that cannot fit',()=>
   }
   assert.ok(createModel({textEnabled:true,texts:{front:'🙂'}}).errors.some(e=>e.includes('fonte')));
   assert.ok(createModel({height:3,width:3,depth:3,window:true,textEnabled:true,texts:{front:'W'.repeat(80)}}).errors.some(e=>e.includes('não cabe')));
+});
+test('art request uses the exact custom theme, both colours, style and four face proportions',()=>{
+  const prompt=buildArtPrompt({...DEFAULTS,description:'Raposinha enfermeira',mainColor:'#ddeeff',detailColor:'#335577',artPromptStyle:'watercolor',texts:{front:'Nome privado'}});
+  assert.ok(prompt.includes('TEMA: Raposinha enfermeira'));assert.ok(prompt.includes('#ddeeff'));assert.ok(prompt.includes('#335577'));assert.ok(prompt.includes('Aquarela suave'));
+  assert.ok(prompt.includes('8,53 × 19,53 cm'));assert.ok(prompt.includes('7,53 × 19,53 cm'));
+  for(const filename of ['frente.png','verso.png','lateral-esquerda.png','lateral-direita.png'])assert.ok(prompt.includes(filename));
+  assert.ok(prompt.includes('fundo realmente transparente'));assert.ok(prompt.includes('Não inclua letras'));assert.ok(!prompt.includes('Nome privado'));
+  const ink=buildArtPrompt({...DEFAULTS,mainColor:'#998866',ink:true});assert.ok(ink.includes('fundo da caixa #ffffff'));
+});
+test('one-face requests account for the selected visor and reject unusable measures',()=>{
+  const prompt=buildArtPrompt({...DEFAULTS,window:true,windows:['right']},'right');
+  assert.ok(prompt.includes('Somente um arquivo PNG'));assert.ok(prompt.includes('LATERAL DIREITA:'));assert.ok(!prompt.includes('FRENTE:'));assert.ok(prompt.includes('visor central de 5,13 × 17,13 cm'));
+  assert.throws(()=>buildArtPrompt({height:NaN}));assert.throws(()=>buildArtPrompt({},'bottom'));
+  assert.throws(()=>buildArtPrompt({width:3,window:true,windowBorder:3},'front'),/moldura/);
+});
+test('preparing art requests never changes the printed template or the project values',()=>{
+  const input={...DEFAULTS,description:'Unicórnio'},snapshot=JSON.stringify(input),pdf=createPDF(createModel(input));
+  for(const style of ART_STYLES){assert.ok(buildArtPrompt({...input,artPromptStyle:style.id}).length>500);assert.deepEqual(createPDF(createModel({...input,artPromptStyle:style.id})),pdf);}
+  assert.equal(JSON.stringify(input),snapshot);
+  const saved=parseProject(projectData({...input,artPromptStyle:'toy'}));assert.equal(saved.config.artPromptStyle,'toy');
 });
