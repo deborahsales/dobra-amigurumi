@@ -1,4 +1,4 @@
-import { DEFAULTS, THEMES, LIDS, FACES, PANORAMA_ORDER, TEXT_FONTS, ART_STYLES, buildArtPrompt, panoramaLayout, panoramaPlacement, fontSampleSVG, normalizeConfig, projectData, parseProject, createModel, resolveTheme, faceSVG, nodesToSVG, artNodes, pageSVG, createPDF, windowGeometry } from './engine.js';
+import { DEFAULTS, THEMES, LIDS, FACES, PANORAMA_ORDER, TEXT_FONTS, ART_STYLES, buildArtPrompt, panoramaLayout, panoramaPlacement, movePanoramaCut, fontSampleSVG, normalizeConfig, projectData, parseProject, createModel, resolveTheme, faceSVG, nodesToSVG, artNodes, pageSVG, createPDF, windowGeometry } from './engine.js';
 
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const htmlEscape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -42,6 +42,10 @@ fillIcons();
 
 let state=normalizeConfig(),uploadedImages={},model,activeTab='box',toastTimer,colorTimer,themeExpanded=false,sharedUploadToken=null;
 const imageSources=new WeakMap(),uploadTokens={};
+let editFrame=0,cutDrag=null,imageDrag=null;
+const defaultImageTransform=()=>({scale:1,x:0,y:0,fit:'original'});
+function scheduleEdit(){if(!editFrame)editFrame=requestAnimationFrame(()=>{editFrame=0;update();});}
+function flushEdit(){if(editFrame){cancelAnimationFrame(editFrame);editFrame=0;}update();}
 const storageKey='dobra-atelie-v1';
 try {const saved=JSON.parse(localStorage.getItem(storageKey));if(saved&&typeof saved==='object')state=normalizeConfig(saved);}catch{}
 function persist(){try{localStorage.setItem(storageKey,JSON.stringify(state));}catch{}}
@@ -140,7 +144,7 @@ function update(){
 }
 $('#box-form').addEventListener('submit',e=>e.preventDefault());
 $('#box-form').addEventListener('input',e=>{
-  if(e.target.type==='file')return;
+  if(e.target.type==='file'||e.target.matches('[data-image-adjust],[data-panorama-cut]'))return;
   readForm();if(e.target.id==='window'&&state.window&&!state.windows.length){state.windows=['front'];$('input[name=windows][value=front]').checked=true;}
   if(['mainColor','detailColor'].includes(e.target.id)){clearTimeout(colorTimer);colorTimer=setTimeout(update,90);}else update();
 });
@@ -188,24 +192,79 @@ async function prepareImage(file,mode=null){
   }finally{URL.revokeObjectURL(url);}
 }
 function renderUploads(){
-  $('#face-uploads').innerHTML=PANORAMA_ORDER.map(id=>FACES.find(f=>f.id===id)).map(f=>`<div class="face-art-card" data-art-face="${f.id}"><label class="face-upload" for="art-${f.id}"><span class="face-art-title">${f.name}</span><span class="face-art-preview"><span class="face-art-thumb" id="thumb-${f.id}" hidden></span><span id="empty-${f.id}">${icon('image')}</span></span><span class="face-art-action" id="action-${f.id}">Escolher imagem</span><span class="face-art-name" id="name-${f.id}">PNG · JPG · WebP</span></label><input id="art-${f.id}" type="file" class="sr-only face-art-input" data-face="${f.id}" accept="image/png,image/jpeg,image/webp"><button type="button" class="repeat-face-art" data-repeat-face="${f.id}" aria-label="Repetir a imagem de ${f.name.toLowerCase()} nas quatro faces" hidden>Repetir nas quatro</button><button type="button" class="remove-face-art" data-remove-face="${f.id}" aria-label="Remover arte: ${f.name}" hidden>${icon('close')}</button></div>`).join('');
+  $('#face-uploads').innerHTML=PANORAMA_ORDER.map(id=>FACES.find(f=>f.id===id)).map(f=>`<div class="face-art-card" data-art-face="${f.id}">
+    <label class="face-upload" for="art-${f.id}"><span class="face-art-title">${f.name}</span><span class="face-art-preview"><span class="face-art-thumb" id="thumb-${f.id}" hidden></span><span id="empty-${f.id}">${icon('image')}</span></span><span class="face-art-action" id="action-${f.id}">Escolher imagem</span><span class="face-art-name" id="name-${f.id}">PNG · JPG · WebP</span></label>
+    <input id="art-${f.id}" type="file" class="sr-only face-art-input" data-face="${f.id}" accept="image/png,image/jpeg,image/webp">
+    <details class="face-editor" id="editor-${f.id}" hidden><summary>Ajustar arte <span>${icon('sliders')}</span></summary><div class="face-editor-content">
+      <div class="face-editor-preview" data-editor-face="${f.id}" id="editor-preview-${f.id}" role="img" aria-label="Prévia de ${f.name.toLowerCase()}; arraste para mover a arte"></div>
+      <p class="micro">Arraste a arte ou use os controles.</p>
+      <label for="image-scale-${f.id}">Tamanho <output id="image-scale-value-${f.id}" for="image-scale-${f.id}">100%</output></label><input id="image-scale-${f.id}" data-image-adjust="scale" data-face="${f.id}" type="range" min="10" max="500" step="1" value="100">
+      <label for="image-x-${f.id}">Horizontal <output id="image-x-value-${f.id}" for="image-x-${f.id}">0%</output></label><input id="image-x-${f.id}" data-image-adjust="x" data-face="${f.id}" type="range" min="-100" max="100" step="1" value="0">
+      <label for="image-y-${f.id}">Vertical <output id="image-y-value-${f.id}" for="image-y-${f.id}">0%</output></label><input id="image-y-${f.id}" data-image-adjust="y" data-face="${f.id}" type="range" min="-100" max="100" step="1" value="0">
+      <div class="image-fit-actions"><button type="button" data-image-fit="contain" data-face="${f.id}">Caber na face</button><button type="button" data-image-fit="cover" data-face="${f.id}">Preencher face</button><button type="button" data-image-fit="original" data-face="${f.id}">Restaurar</button></div>
+    </div></details>
+    <button type="button" class="repeat-face-art" data-repeat-face="${f.id}" aria-label="Repetir a imagem de ${f.name.toLowerCase()} nas quatro faces" hidden>Repetir nas quatro</button><button type="button" class="remove-face-art" data-remove-face="${f.id}" aria-label="Remover arte: ${f.name}" hidden>${icon('close')}</button>
+  </div>`).join('');
+  $$('.face-editor').forEach(editor=>editor.addEventListener('toggle',()=>{editor.closest('.face-art-card').classList.toggle('editing',editor.open);if(editor.open)updateUpload();}));
+}
+function faceEditorSVG(part,face){
+  const nodes=[artNodes(part.width,part.height,state,face,uploadedImages)];
+  const v=state.window&&state.windows.includes(face)?windowGeometry(part.width,part.height,state):null;
+  if(v)nodes.push({type:'rect',...v,fill:'#ffffff',stroke:'#b8c2ad',width:.4,w:v.w,h:v.h});
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${part.width} ${part.height}" aria-hidden="true">${nodesToSVG(nodes)}</svg>`;
 }
 function currentPanorama(){return Object.values(uploadedImages).find(image=>image?.mode==='panorama');}
 function renderPanorama(){
-  const asset=currentPanorama();$('#remove-panorama').hidden=!asset;$('#apply-panorama').hidden=!asset;
+  const asset=currentPanorama();$('#remove-panorama').hidden=!asset;$('#apply-panorama').hidden=!asset;$('#reset-panorama-cuts').disabled=!asset;
   try{
     const layout=panoramaLayout(state),bg=resolveTheme(state).bg;
     $('#panorama-size').textContent=`Arte total: ${cm(layout.width)} × ${cm(layout.height)} cm (largura × altura)`;
     const nodes=[{type:'rect',x:0,y:0,w:layout.width,h:layout.height,fill:bg}];
     if(asset)nodes.push({type:'image',...panoramaPlacement(layout,asset.ratio),image:asset});
-    for(const face of layout.faces.slice(1))nodes.push({type:'path',commands:[['M',face.x,0],['L',face.x,layout.height]],stroke:'#536448',width:.6,dash:[2,2]});
-    $('#panorama-strip').innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${layout.width} ${layout.height}" role="img" aria-label="Panorama com guias das quatro faces; guias não impressas">${nodesToSVG(nodes)}</svg>`;
-    $('#panorama-labels').innerHTML=layout.faces.map(face=>`<span style="flex:${face.width}"><strong>${face.name}</strong><small>${cm(face.width)} cm</small>${asset&&uploadedImages[face.id]!==asset?'<em>'+(uploadedImages[face.id]?'Imagem individual':'Coleção padrão')+'</em>':''}</span>`).join('');
+    $('#panorama-strip').innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${layout.width} ${layout.height}" role="img" aria-label="Panorama com cortes ajustáveis das quatro faces; guias não impressas">${nodesToSVG(nodes)}</svg>`;
+    for(let i=0;i<3;i++){
+      const value=layout.cuts[i]*100,min=(i?layout.cuts[i-1]*100:0)+1,max=(i<2?layout.cuts[i+1]*100:100)-1,handle=$(`[data-cut-handle="${i}"]`),range=$('#panorama-cut-'+i);
+      handle.style.left=value+'%';handle.disabled=!asset;handle.setAttribute('aria-valuemin',min);handle.setAttribute('aria-valuemax',max);handle.setAttribute('aria-valuenow',value);handle.setAttribute('aria-valuetext',value.toLocaleString('pt-BR',{maximumFractionDigits:2})+'% da imagem');
+      range.min=min;range.max=max;range.value=value;range.disabled=!asset;$('#panorama-cut-value-'+i).textContent=value.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';
+    }
+    $('#panorama-labels').innerHTML=layout.faces.map(face=>`<span style="flex:${face.end-face.start}"><strong>${face.name}</strong><small>${cm(face.width)} cm</small>${asset&&uploadedImages[face.id]!==asset?'<em>'+(uploadedImages[face.id]?'Imagem individual':'Coleção padrão')+'</em>':''}</span>`).join('');
     const count=asset?FACES.filter(f=>uploadedImages[f.id]===asset).length:0;
-    const adjustment=asset&&Math.abs(asset.ratio/layout.ratio-1)>.02?' A proporção da imagem difere da caixa: a largura inteira é mantida, sem deformar. Pode haver recorte ou espaço livre em cima e embaixo. Confira a prévia.':'';
-    $('#panorama-note').textContent=(asset?`Panorama aplicado em ${count} de 4 faces. `:'Envie uma imagem com as quatro faces lado a lado. ')+'As guias acima aparecem só no site. A divisão acompanha as larguras se você mudar as medidas.'+adjustment;
-  }catch(err){$('#panorama-size').textContent=err.message;$('#panorama-strip').innerHTML='';$('#panorama-labels').innerHTML='';$('#panorama-note').textContent='Confira as medidas para visualizar a divisão do panorama.';}
+    $('#panorama-note').textContent=(asset?`Panorama aplicado em ${count} de 4 faces. `:'Envie uma imagem com as quatro faces lado a lado. ')+(layout.automatic?'Cortes automáticos conforme as medidas. ':'Cortes personalizados; as posições escolhidas são mantidas ao mudar as medidas. ')+'Arraste as linhas ou use os controles abaixo. As guias aparecem só no site. Confira cada trecho em “Ajustar arte”.';
+  }catch(err){
+    $('#panorama-size').textContent=err.message;$('#panorama-strip').innerHTML='';$('#panorama-labels').innerHTML='';$('#panorama-note').textContent='Confira as medidas para visualizar a divisão do panorama.';
+    $$('[data-cut-handle],[data-panorama-cut]').forEach(el=>el.disabled=true);
+  }
 }
+function changePanoramaCut(index,value){try{state.panoramaCuts=movePanoramaCut(state,index,value);scheduleEdit();}catch{}}
+$('#panorama-cut-controls').addEventListener('input',e=>{if(e.target.matches('[data-panorama-cut]'))changePanoramaCut(Number(e.target.dataset.panoramaCut),Number(e.target.value)/100);});
+$('#reset-panorama-cuts').addEventListener('click',()=>{state.panoramaCuts=null;flushEdit();toast('Cortes automáticos restaurados.');});
+$('#panorama-handles').addEventListener('pointerdown',e=>{
+  const handle=e.target.closest('[data-cut-handle]');if(!handle||handle.disabled||e.button!==0)return;
+  const rect=$('#panorama-strip').getBoundingClientRect();cutDrag={pointer:e.pointerId,index:Number(handle.dataset.cutHandle),rect};handle.setPointerCapture(e.pointerId);e.preventDefault();
+});
+$('#panorama-handles').addEventListener('pointermove',e=>{if(cutDrag&&cutDrag.pointer===e.pointerId)changePanoramaCut(cutDrag.index,(e.clientX-cutDrag.rect.left)/cutDrag.rect.width);});
+for(const event of ['pointerup','pointercancel','lostpointercapture'])$('#panorama-handles').addEventListener(event,e=>{if(cutDrag&&cutDrag.pointer===e.pointerId){cutDrag=null;flushEdit();}});
+$('#panorama-handles').addEventListener('keydown',e=>{
+  const handle=e.target.closest('[data-cut-handle]');if(!handle||handle.disabled)return;
+  const i=Number(handle.dataset.cutHandle),cuts=panoramaLayout(state).cuts,step=e.shiftKey ? .01 : .001;
+  let value=cuts[i];if(['ArrowLeft','ArrowDown'].includes(e.key))value-=step;else if(['ArrowRight','ArrowUp'].includes(e.key))value+=step;else if(e.key==='Home')value=0;else if(e.key==='End')value=1;else return;
+  e.preventDefault();changePanoramaCut(i,value);
+});
+$('#face-uploads').addEventListener('input',e=>{
+  const input=e.target;if(!input.matches('[data-image-adjust]'))return;
+  const key=input.dataset.imageAdjust,face=input.dataset.face;state.imageTransforms[face][key]=Number(input.value)/(key==='scale'?100:1);scheduleEdit();
+});
+$('#face-uploads').addEventListener('pointerdown',e=>{
+  const preview=e.target.closest('[data-editor-face]');if(!preview||e.button!==0||!uploadedImages[preview.dataset.editorFace])return;
+  let layout;try{layout=panoramaLayout(state);}catch{return;}
+  const face=preview.dataset.editorFace,part=layout.faces.find(f=>f.id===face),rect=preview.getBoundingClientRect(),scale=Math.min(rect.width/part.width,rect.height/part.height);
+  imageDrag={pointer:e.pointerId,face,startX:e.clientX,startY:e.clientY,x:state.imageTransforms[face].x,y:state.imageTransforms[face].y,width:part.width*scale,height:part.height*scale};preview.setPointerCapture(e.pointerId);e.preventDefault();
+});
+$('#face-uploads').addEventListener('pointermove',e=>{
+  if(!imageDrag||imageDrag.pointer!==e.pointerId)return;const d=imageDrag,t=state.imageTransforms[d.face];
+  t.x=Math.max(-100,Math.min(100,d.x+(e.clientX-d.startX)/d.width*100));t.y=Math.max(-100,Math.min(100,d.y+(e.clientY-d.startY)/d.height*100));scheduleEdit();
+});
+for(const event of ['pointerup','pointercancel','lostpointercapture'])$('#face-uploads').addEventListener(event,e=>{if(imageDrag&&imageDrag.pointer===e.pointerId){imageDrag=null;flushEdit();}});
 function renderArtPrompt(){
   try{$('#art-prompt-text').value=buildArtPrompt(state,$('#prompt-target').value);$('#copy-art-prompt').disabled=false;}
   catch(err){$('#art-prompt-text').value=err.message;$('#copy-art-prompt').disabled=true;}
@@ -233,9 +292,14 @@ function updateUpload(){
   for(const face of FACES){
     const asset=uploadedImages[face.id],thumb=$('#thumb-'+face.id),panoramic=asset?.mode==='panorama',part=layout?.faces.find(f=>f.id===face.id);
     thumb.hidden=!asset;$('#empty-'+face.id).hidden=!!asset;
-    thumb.innerHTML=asset?(panoramic&&part?faceSVG(part.width,part.height,{...state,textEnabled:false},face.id,uploadedImages):`<img src="${htmlEscape(asset.sourceDataUrl||asset.dataUrl)}" alt="Arte para ${face.name.toLowerCase()}">`):'';
+    thumb.innerHTML=asset?(part?faceSVG(part.width,part.height,{...state,textEnabled:false},face.id,uploadedImages):`<img src="${htmlEscape(asset.sourceDataUrl||asset.dataUrl)}" alt="Arte para ${face.name.toLowerCase()}">`):'';
     $('#action-'+face.id).textContent=asset?'Trocar imagem':'Escolher imagem';$('#name-'+face.id).textContent=asset?(panoramic?'Trecho do panorama · ':'')+asset.name:'PNG · JPG · WebP';
     $(`[data-remove-face="${face.id}"]`).hidden=!asset;$(`[data-repeat-face="${face.id}"]`).hidden=!asset||panoramic;
+    const editor=$('#editor-'+face.id);editor.hidden=!asset;if(!asset){editor.open=false;$('#editor-preview-'+face.id).innerHTML='';}
+    const t=state.imageTransforms[face.id];
+    for(const key of ['scale','x','y']){const value=key==='scale'?t.scale*100:t[key],input=$('#image-'+key+'-'+face.id);input.value=value;input.disabled=!part;$('#image-'+key+'-value-'+face.id).textContent=value.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';}
+    if(editor.open&&asset&&part)$('#editor-preview-'+face.id).innerHTML=faceEditorSVG(part,face.id);
+    $$('#editor-'+face.id+' [data-image-fit]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.imageFit===t.fit&&(t.fit!=='original'||t.scale===1&&t.x===0&&t.y===0))));
   }
   renderPanorama();
 }
@@ -245,15 +309,16 @@ $('#art-all').addEventListener('change',async e=>{
   try{
     const asset=await prepareImage(file,'panorama'),faces=FACES.filter(f=>uploadTokens[f.id]===token);
     if(!faces.length)return;
-    for(const face of faces)uploadedImages[face.id]=asset;
+    for(const face of faces){uploadedImages[face.id]=asset;state.imageTransforms[face.id]=defaultImageTransform();}
     update();toast(faces.length===4?'Panorama dividido e aplicado nas quatro faces.':`Panorama aplicado em ${faces.length} ${faces.length===1?'face':'faces'}. As trocas individuais foram mantidas.`);
   }catch(err){if(sharedUploadToken===token)toast(err.message);}
   finally{if(sharedUploadToken===token){sharedUploadToken=null;input.value='';updateUpload();}}
 });
-$('#face-uploads').addEventListener('change',async e=>{const input=e.target;if(!input.classList.contains('face-art-input'))return;const file=input.files[0],face=input.dataset.face;if(!file)return;const token=Symbol();uploadTokens[face]=token;$('#action-'+face).textContent='Carregando…';try{const asset=await prepareImage(file);if(uploadTokens[face]!==token)return;uploadedImages[face]=asset;updateUpload();update();toast(`Arte adicionada: ${FACES.find(f=>f.id===face).name.toLowerCase()}.`);}catch(err){toast(err.message);updateUpload();}finally{input.value='';}});
+$('#face-uploads').addEventListener('change',async e=>{const input=e.target;if(!input.classList.contains('face-art-input'))return;const file=input.files[0],face=input.dataset.face;if(!file)return;const token=Symbol();uploadTokens[face]=token;$('#action-'+face).textContent='Carregando…';try{const asset=await prepareImage(file);if(uploadTokens[face]!==token)return;uploadedImages[face]=asset;state.imageTransforms[face]=defaultImageTransform();update();toast(`Arte adicionada: ${FACES.find(f=>f.id===face).name.toLowerCase()}.`);}catch(err){toast(err.message);updateUpload();}finally{input.value='';}});
 $('#face-uploads').addEventListener('click',e=>{
+  const fit=e.target.closest('[data-image-fit]');if(fit){state.imageTransforms[fit.dataset.face]={...defaultImageTransform(),fit:fit.dataset.imageFit};flushEdit();return;}
   const repeat=e.target.closest('[data-repeat-face]');
-  if(repeat){const asset=uploadedImages[repeat.dataset.repeatFace];if(!asset)return;cancelImageUploads();uploadedImages=Object.fromEntries(FACES.map(f=>[f.id,asset]));updateUpload();update();toast('A mesma arte foi aplicada nas quatro faces.');return;}
+  if(repeat){const asset=uploadedImages[repeat.dataset.repeatFace],transform={...state.imageTransforms[repeat.dataset.repeatFace]};if(!asset)return;cancelImageUploads();uploadedImages=Object.fromEntries(FACES.map(f=>[f.id,asset]));for(const face of FACES)state.imageTransforms[face.id]={...transform};update();toast('A mesma arte foi aplicada nas quatro faces.');return;}
   const b=e.target.closest('[data-remove-face]');if(!b)return;const face=b.dataset.removeFace;uploadTokens[face]=Symbol();delete uploadedImages[face];updateUpload();update();
 });
 $('#apply-panorama').addEventListener('click',()=>{const asset=currentPanorama();if(!asset)return;cancelImageUploads();uploadedImages=Object.fromEntries(FACES.map(f=>[f.id,asset]));update();toast('Os quatro trechos do panorama foram aplicados novamente.');});

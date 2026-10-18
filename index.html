@@ -58,13 +58,23 @@
             </div>
             <div class="panorama-plan">
               <p id="panorama-size" class="panorama-size"></p>
-              <div id="panorama-strip" class="panorama-strip"></div>
+              <div class="panorama-canvas"><div id="panorama-strip" class="panorama-strip"></div><div id="panorama-handles" class="panorama-handles">
+                <button type="button" data-cut-handle="0" class="panorama-cut-handle" role="slider" aria-label="Corte entre frente e lateral direita" aria-orientation="horizontal" disabled><span>1</span></button>
+                <button type="button" data-cut-handle="1" class="panorama-cut-handle" role="slider" aria-label="Corte entre lateral direita e verso" aria-orientation="horizontal" disabled><span>2</span></button>
+                <button type="button" data-cut-handle="2" class="panorama-cut-handle" role="slider" aria-label="Corte entre verso e lateral esquerda" aria-orientation="horizontal" disabled><span>3</span></button>
+              </div></div>
               <div id="panorama-labels" class="panorama-labels"></div>
               <p id="panorama-note" class="micro" aria-live="polite"></p>
+              <div id="panorama-cut-controls" class="panorama-cut-controls" role="group" aria-label="Posição dos cortes do panorama">
+                <label for="panorama-cut-0">1 · Frente / lateral direita <output id="panorama-cut-value-0" for="panorama-cut-0"></output></label><input id="panorama-cut-0" data-panorama-cut="0" type="range" min="1" max="99" step="0.1" disabled>
+                <label for="panorama-cut-1">2 · Lateral direita / verso <output id="panorama-cut-value-1" for="panorama-cut-1"></output></label><input id="panorama-cut-1" data-panorama-cut="1" type="range" min="1" max="99" step="0.1" disabled>
+                <label for="panorama-cut-2">3 · Verso / lateral esquerda <output id="panorama-cut-value-2" for="panorama-cut-2"></output></label><input id="panorama-cut-2" data-panorama-cut="2" type="range" min="1" max="99" step="0.1" disabled>
+                <button type="button" id="reset-panorama-cuts" class="text-button" disabled>Restaurar cortes automáticos</button>
+              </div>
               <div class="panorama-actions"><button type="button" id="apply-panorama" class="text-button" hidden>Aplicar nas quatro</button><button type="button" id="remove-panorama" class="text-button" hidden>Remover panorama</button></div>
             </div>
             <div id="face-uploads" class="face-uploads"></div>
-            <p class="micro" id="art-upload-note">O panorama é dividido na sequência frente → lateral direita → verso → lateral esquerda. Você pode trocar ou remover a arte de cada face. Nas faces com visor, a abertura recorta a imagem.</p>
+            <p class="micro" id="art-upload-note">O panorama é dividido na sequência frente → lateral direita → verso → lateral esquerda. Abra “Ajustar arte” em cada face para mudar o tamanho e a posição da imagem. Você também pode trocar ou remover a arte. Nas faces com visor, a abertura recorta a imagem.</p>
           </div>
           <div class="text-section"><label class="switch-row" for="textEnabled"><span><strong>Texto na embalagem</strong><small>Um nome ou uma mensagem do seu jeito.</small></span><input id="textEnabled" name="textEnabled" type="checkbox" role="switch"><span class="switch-track" aria-hidden="true"></span></label><div id="text-settings" hidden><div id="face-texts" class="face-texts"></div><span class="field-label">Escolha a fonte</span><div id="font-options" class="font-options" role="group" aria-label="Fonte do texto"></div><div class="text-options"><label for="textSize">Tamanho <output id="text-size-value" for="textSize">16 pt</output><input id="textSize" name="textSize" type="range" min="9" max="30" step="1" value="16"></label><label for="textPosition">Posição<select id="textPosition" name="textPosition"><option value="bottom">Embaixo</option><option value="top">Em cima</option><option value="center">Ao centro</option></select></label></div><p class="micro">O texto usa a cor dos detalhes. Com visor, fica na moldura. Textos longos se ajustam à área disponível.</p></div></div>
         </fieldset>

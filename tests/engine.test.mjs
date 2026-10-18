@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createModel, createPDF, DEFAULTS, LIDS, THEMES, FACES, PANORAMA_ORDER, TEXT_FONTS, ART_STYLES, buildArtPrompt, panoramaLayout, panoramaPlacement, layoutText, normalizeConfig, projectData, parseProject, pageSVG, windowGeometry, placementMatrix, resolveTheme } from '../src/engine.js';
+import { createModel, createPDF, DEFAULTS, LIDS, THEMES, FACES, PANORAMA_ORDER, TEXT_FONTS, ART_STYLES, buildArtPrompt, panoramaLayout, panoramaPlacement, movePanoramaCut, imagePlacement, layoutText, normalizeConfig, projectData, parseProject, pageSVG, windowGeometry, placementMatrix, resolveTheme } from '../src/engine.js';
 
 const epsilon=.006;
 const overlaps=(a,b)=>a.x<b.x+b.w-epsilon&&a.x+a.w>b.x+epsilon&&a.y<b.y+b.h-epsilon&&a.y+a.h>b.y+epsilon;
@@ -65,7 +65,7 @@ test('a single panoramic source paints the correct full-face slices in SVG and P
   const layout=panoramaLayout(panoramaConfig);
   for(const face of layout.faces){
     const nodes=flatten(m.pieces.find(p=>p.id===face.id).nodes),image=nodes.find(n=>n.type==='image');
-    assert.equal(image.image,asset);assert.equal(image.x,-face.x);assert.equal(image.y,0);assert.equal(image.w,300);assert.equal(image.h,100);
+    assert.equal(image.image,asset);assert.ok(Math.abs(image.x+face.x)<epsilon);assert.equal(image.y,0);assert.equal(image.w,300);assert.equal(image.h,100);
     const clip=nodes.find(n=>n.clip);assert.deepEqual(clip.clip,{x:0,y:0,w:face.width,h:100});
     assert.equal(clip.children.length,2,'Only the selected background and panoramic image, without unrelated theme motifs');
     assert.ok(Math.abs((face.width-image.x)/image.w-face.end)<epsilon);
@@ -245,4 +245,71 @@ test('preparing art requests never changes the printed template or the project v
   for(const style of ART_STYLES){assert.ok(buildArtPrompt({...input,artPromptStyle:style.id}).length>500);assert.deepEqual(createPDF(createModel({...input,artPromptStyle:style.id})),pdf);}
   assert.equal(JSON.stringify(input),snapshot);
   const saved=parseProject(projectData({...input,artPromptStyle:'toy'}));assert.equal(saved.config.artPromptStyle,'toy');
+});
+
+test('manual panorama cuts select exact source fractions without changing physical faces',async()=>{
+  const asset=JSON.parse(await readFile(new URL('./fixtures/panorama.json',import.meta.url),'utf8'));
+  const config={...panoramaConfig,panoramaCuts:[.2,.6,.85]},layout=panoramaLayout(config),images=Object.fromEntries(FACES.map(f=>[f.id,asset]));
+  assert.equal(layout.automatic,false);assert.deepEqual(layout.cuts,[.2,.6,.85]);
+  const m=createModel(config,images);verifyPacking(m);
+  for(const f of layout.faces){
+    const p=panoramaPlacement(layout,asset.ratio,f.id);assert.ok(Math.abs(-p.x/p.w-f.start)<epsilon);assert.ok(Math.abs((f.width-p.x)/p.w-f.end)<epsilon);assert.ok(Math.abs(p.w/p.h-asset.ratio)<epsilon);
+    const image=flatten(m.pieces.find(p=>p.id===f.id).nodes).find(n=>n.type==='image');assert.ok(Math.abs(image.x-p.x)<epsilon);assert.ok(Math.abs(image.w-p.w)<epsilon);
+  }
+  assert.ok(Math.abs(m.W-100)<epsilon);assert.ok(Math.abs(m.D-50)<epsilon);assert.ok(Math.abs(m.H-100)<epsilon);
+  const changed=panoramaLayout({...config,width:14.97});assert.deepEqual(changed.cuts,layout.cuts);assert.ok(Math.abs(changed.faces[0].width-150)<epsilon);
+  const moved=movePanoramaCut(config,0,.99);assert.ok(Math.abs(moved[0]-.59)<epsilon);assert.equal(moved[1],.6);assert.equal(moved[2],.85);
+  assert.deepEqual(config.panoramaCuts,[.2,.6,.85]);assert.throws(()=>movePanoramaCut(config,4,.5));assert.throws(()=>movePanoramaCut(config,0,NaN));
+});
+test('individual artwork scales and moves independently while contain and cover preserve proportions',async()=>{
+  const raw=JSON.parse(await readFile(new URL('./fixtures/panorama.json',import.meta.url),'utf8')),asset={...raw};delete asset.mode;
+  const config=normalizeConfig({...panoramaConfig,imageTransforms:{front:{scale:2,x:10,y:-20}}});
+  const a=imagePlacement(100,100,config,'front',asset).rect,b=imagePlacement(100,100,config,'back',asset).rect;
+  assert.ok(Math.abs(a.w-110)<epsilon);assert.ok(Math.abs(a.x-5)<epsilon);assert.ok(Math.abs(a.y-11.6666666667)<epsilon);assert.equal(a.w/b.w,2);assert.ok(Math.abs(a.w/a.h-3)<epsilon);
+  for(const fit of ['contain','cover']){
+    const c=normalizeConfig({...panoramaConfig,imageTransforms:{front:{fit}}}),p=imagePlacement(100,100,c,'front',asset).rect;
+    assert.ok(Math.abs(p.w/p.h-3)<epsilon);
+    if(fit==='contain'){assert.equal(p.w,100);assert.ok(p.h<100);assert.equal(p.x,0);}else{assert.equal(p.h,100);assert.equal(p.w,300);assert.equal(p.x,-100);}
+  }
+  const images={front:asset,back:asset},model=createModel(config,images);verifyPacking(model);
+  for(const face of ['front','back']){const image=flatten(model.pieces.find(p=>p.id===face).nodes).find(n=>n.type==='image');assert.equal(image.w,face==='front'?a.w:b.w);}
+});
+test('zoomed and moved panorama strips remain clipped to their selected source face',async()=>{
+  const asset=JSON.parse(await readFile(new URL('./fixtures/panorama.json',import.meta.url),'utf8'));
+  const config=normalizeConfig({...panoramaConfig,panoramaCuts:[1/3,.5,5/6],imageTransforms:{right:{scale:.5,x:20,y:0}}}),layout=panoramaLayout(config);
+  const placement=imagePlacement(50,100,config,'right',asset);
+  assert.ok(Math.abs(placement.clip.x-22.5)<epsilon);assert.ok(Math.abs(placement.clip.y-25)<epsilon);assert.ok(Math.abs(placement.clip.w-25)<epsilon);assert.ok(Math.abs(placement.clip.h-50)<epsilon);
+  const section=layout.faces.find(f=>f.id==='right'),p=placement.rect;
+  assert.ok(Math.abs((placement.clip.x-p.x)/p.w-section.start)<epsilon);assert.ok(Math.abs((placement.clip.x+placement.clip.w-p.x)/p.w-section.end)<epsilon);
+  const model=createModel(config,Object.fromEntries(FACES.map(f=>[f.id,asset]))),nodes=flatten(model.pieces.find(p=>p.id==='right').nodes);
+  assert.ok(nodes.some(n=>n.clip&&Math.abs(n.clip.w-25)<epsilon));
+  const pdf=Buffer.from(createPDF(model)).toString('latin1');assert.ok(pdf.includes(' re W n'));assert.equal((pdf.match(/\/Subtype \/Image/g)||[]).length,1);
+});
+test('cut and image controls reject unusable values before generating PDF',()=>{
+  for(const panoramaCuts of [[.5,.3,.8],[0,.5,.8],[.3,.5,1],[.3,.305,.8],[.3,.5],['.3',.5,.8],{}]){
+    const m=createModel({panoramaCuts});assert.ok(m.errors.some(e=>e.includes('cortes')));assert.throws(()=>createPDF(m));
+  }
+  for(const change of [{scale:0},{scale:5.1},{x:101},{y:NaN},{fit:'stretch'}]){const m=createModel({imageTransforms:{front:change}});assert.ok(m.errors.length);assert.throws(()=>createPDF(m));}
+});
+test('project saving preserves custom cuts and independent image transforms with old-project defaults',async()=>{
+  const asset=JSON.parse(await readFile(new URL('./fixtures/panorama.json',import.meta.url),'utf8'));
+  const c=normalizeConfig({...panoramaConfig,panoramaCuts:[.2,.6,.85],imageTransforms:{front:{scale:1.7,x:-12,y:9,fit:'cover'},right:{scale:.5,x:20}}});
+  const p=parseProject(JSON.parse(JSON.stringify(projectData(c,Object.fromEntries(FACES.map(f=>[f.id,asset]))))));
+  assert.deepEqual(p.config.panoramaCuts,c.panoramaCuts);assert.deepEqual(p.config.imageTransforms,c.imageTransforms);assert.equal(p.images.front,p.images.left);
+  const copy=normalizeConfig(c);copy.panoramaCuts[0]=.1;copy.imageTransforms.front.x=55;assert.equal(c.panoramaCuts[0],.2);assert.equal(c.imageTransforms.front.x,-12);assert.equal(c.imageTransforms.back.x,0);
+  const old=parseProject({app:'dobra-atelie',version:2,config:{height:19},images:{}});assert.equal(old.config.panoramaCuts,null);assert.deepEqual(old.config.imageTransforms.front,{scale:1,x:0,y:0,fit:'original'});
+});
+test('art-generation prompts retain physical dimensions regardless of later crop and zoom choices',()=>{
+  const c={...panoramaConfig,description:'Jesus'},adjusted={...c,panoramaCuts:[.2,.6,.85],imageTransforms:{front:{scale:2,x:20,y:-10}}};
+  assert.equal(buildArtPrompt(c),buildArtPrompt(adjusted));
+});
+
+test('fractional cuts and zoom export valid decimal PDF coordinates without scientific notation',async()=>{
+  const asset=JSON.parse(await readFile(new URL('./fixtures/panorama.json',import.meta.url),'utf8'));
+  const images=Object.fromEntries(FACES.map(f=>[f.id,asset]));
+  for(const imageTransforms of [{right:{scale:.5,x:20}},{front:{scale:.33,x:-99.9,y:31.7},back:{fit:'contain',scale:1.73}}]){
+    const m=createModel({...panoramaConfig,panoramaCuts:[1/3,.5,5/6],imageTransforms},images),pdf=Buffer.from(createPDF(m)).toString('latin1');
+    const streams=[...pdf.matchAll(/<< \/Length \d+ >>\nstream\n([\s\S]*?)endstream/g)].map(m=>m[1]);
+    assert.equal(streams.length,m.pages.length);for(const s of streams)assert.equal(/\d(?:\.\d+)?[eE][-+]?\d|NaN|Infinity/.test(s),false);
+  }
 });

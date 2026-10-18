@@ -1,6 +1,6 @@
 import { FONT_LIBRARY } from './fonts.js';
 /* All manufacturing geometry is expressed in millimetres. No DOM dependencies. */
-export const DEFAULTS = Object.freeze({ height: 19, width: 8, depth: 7, ease: 0.5, thickness: 0.3, margin: 6, theme: 'botanico', description: '', lid: 'tuck', mainColor: '#f5f1e5', detailColor: '#6c8267', folds: true, window: false, windows: ['front'], windowBorder: 1.2, ink: false, textEnabled:false, texts:{front:'',back:'',left:'',right:''},textFont:'classic',textSize:16,textPosition:'bottom',artPromptStyle:'flat' });
+export const DEFAULTS = Object.freeze({ height: 19, width: 8, depth: 7, ease: 0.5, thickness: 0.3, margin: 6, theme: 'botanico', description: '', lid: 'tuck', mainColor: '#f5f1e5', detailColor: '#6c8267', folds: true, window: false, windows: ['front'], windowBorder: 1.2, ink: false, textEnabled:false, texts:{front:'',back:'',left:'',right:''},textFont:'classic',textSize:16,textPosition:'bottom',artPromptStyle:'flat',panoramaCuts:null,imageTransforms:{} });
 export const FACES = Object.freeze([{id:'front',name:'Frente'},{id:'back',name:'Verso'},{id:'left',name:'Lateral esquerda'},{id:'right',name:'Lateral direita'}]);
 export const PANORAMA_ORDER = Object.freeze(['front','right','back','left']);
 export const TEXT_FONTS = Object.freeze(FONT_LIBRARY.map(({id,name})=>({id,name})));
@@ -68,6 +68,8 @@ export function normalizeConfig(input={}) {
   c.detailColor=input.detailColor??input.color??preset.ink;
   c.windows=Array.isArray(c.windows)?[...c.windows]:['front'];
   c.texts=Object.fromEntries(FACES.map(f=>[f.id,String(input.texts?.[f.id]||'').normalize('NFC').replace(/[\r\n\t]/g,' ').slice(0,80)]));
+  c.panoramaCuts=Array.isArray(c.panoramaCuts)?[...c.panoramaCuts]:c.panoramaCuts;
+  c.imageTransforms=Object.fromEntries(FACES.map(({id})=>{const t=input.imageTransforms?.[id]||{};return [id,{scale:t.scale??1,x:t.x??0,y:t.y??0,fit:t.fit??'original'}];}));
   return c;
 }
 export function projectData(config,images={}) {
@@ -113,6 +115,12 @@ export function validateConfig(input) {
   if (!THEMES.some(t=>t.id===c.theme))errors.push('Escolha um tema válido.');
   if (!ART_STYLES.some(s=>s.id===c.artPromptStyle))errors.push('Escolha um estilo válido para o pedido de arte.');
   if (!hexOK(c.mainColor||'')||!hexOK(c.detailColor||''))errors.push('Escolha cores válidas para o fundo e os detalhes.');
+  if(c.panoramaCuts!==null&&(!Array.isArray(c.panoramaCuts)||c.panoramaCuts.length!==3||[0,...c.panoramaCuts,1].some((v,i,a)=>!Number.isFinite(v)||(i&&v-a[i-1]<.01-1e-10))))errors.push('Os cortes do panorama devem ficar em ordem, com pelo menos 1% da imagem para cada face.');
+  for(const face of FACES){
+    const t=c.imageTransforms[face.id];
+    for(const [key,min,max]of [['scale',.1,5],['x',-100,100],['y',-100,100]]){t[key]=Number(t[key]);if(!Number.isFinite(t[key])||t[key]<min||t[key]>max)errors.push(`Confira o tamanho e a posição da imagem de ${face.name.toLowerCase()}.`);}
+    if(!['original','contain','cover'].includes(t.fit))errors.push('Escolha um ajuste válido para a imagem.');
+  }
   const font=FONT_LIBRARY.find(f=>f.id===c.textFont);
   if(!font)errors.push('Escolha uma fonte válida.');
   if(!['top','center','bottom'].includes(c.textPosition))errors.push('Escolha uma posição válida para o texto.');
@@ -125,23 +133,49 @@ export function panoramaLayout(input={}) {
   const {config:c,errors}=validateConfig({...input,textEnabled:false});
   if(errors.length)throw new Error('Confira as medidas e as opções da caixa antes de preparar o panorama.');
   const front=(c.width+c.ease)*10+c.thickness,side=(c.depth+c.ease)*10+c.thickness,height=(c.height+c.ease)*10+c.thickness;
-  const width=2*(front+side);let x=0;
-  const faces=PANORAMA_ORDER.map(id=>{const w=['front','back'].includes(id)?front:side,face={id,name:FACES.find(f=>f.id===id).name,x,width:w,height,start:x/width,end:(x+w)/width};x+=w;return face;});
-  return {width,height,ratio:width/height,faces};
+  const width=2*(front+side),automatic=c.panoramaCuts===null;let x=0;
+  const edges=automatic?null:[0,...c.panoramaCuts,1];
+  const faces=PANORAMA_ORDER.map((id,i)=>{const w=['front','back'].includes(id)?front:side,face={id,name:FACES.find(f=>f.id===id).name,x,width:w,height,start:edges?edges[i]:x/width,end:edges?edges[i+1]:(x+w)/width};x+=w;return face;});
+  return {width,height,ratio:width/height,faces,automatic,cuts:faces.slice(0,3).map(f=>f.end)};
+}
+export function movePanoramaCut(input,index,fraction) {
+  if(!Number.isInteger(index)||index<0||index>2||!Number.isFinite(fraction))throw new Error('Corte do panorama inválido.');
+  const cuts=[...panoramaLayout(input).cuts],min=index?cuts[index-1]+.01:.01,max=index<2?cuts[index+1]-.01:.99;
+  cuts[index]=clamp(fraction,min,max);return cuts;
 }
 export function panoramaPlacement(layout,ratio,faceId=null) {
   if(!Number.isFinite(ratio)||ratio<=0)throw new Error('Proporção do panorama inválida.');
   const face=faceId===null?null:layout.faces.find(f=>f.id===faceId);
   if(faceId!==null&&!face)throw new Error('Face do panorama inválida.');
   // Keep every horizontal source pixel: only the vertical framing can change.
-  const h=layout.width/ratio;
-  return {x:face?-face.x:0,y:(layout.height-h)/2,w:layout.width,h};
+  const w=face&&layout.automatic===false?face.width/(face.end-face.start):layout.width,h=w/ratio;
+  return {x:face?(layout.automatic===false?-face.start*w:-face.x):0,y:(layout.height-h)/2,w,h};
+}
+export function imagePlacement(w,h,config,face,image) {
+  const t={scale:1,x:0,y:0,fit:'original',...config.imageTransforms?.[face]};
+  const transform=r=>({x:w/2+(r.x-w/2)*t.scale+t.x*w/100,y:h/2+(r.y-h/2)*t.scale+t.y*h/100,w:r.w*t.scale,h:r.h*t.scale});
+  let rect,clip;
+  if(image.mode==='panorama'){
+    const layout=panoramaLayout(config),section=layout.faces.find(f=>f.id===face),span=section.end-section.start;
+    rect=panoramaPlacement(layout,image.ratio,face);
+    if(t.fit!=='original'){
+      const ratio=image.ratio*span,paneH=(t.fit==='cover'?Math.max:Math.min)(w/ratio,h),paneW=paneH*ratio;
+      rect={x:(w-paneW)/2-section.start*paneW/span,y:(h-paneH)/2,w:paneW/span,h:paneH};
+    }
+    // Clip to this source strip before zooming or moving it, so neighbouring faces never leak in.
+    clip=transform({x:rect.x+section.start*rect.w,y:rect.y,w:span*rect.w,h:rect.h});
+  }else{
+    const areaW=t.fit==='original'?Math.min(w*.8,h*.55):w,areaH=t.fit==='original'?h*.55:h;
+    const ih=(t.fit==='cover'?Math.max:Math.min)(areaW/image.ratio,areaH),iw=ih*image.ratio;
+    rect={x:(w-iw)/2,y:(h-ih)/2,w:iw,h:ih};
+  }
+  return {rect:transform(rect),clip};
 }
 export function buildArtPrompt(input={},target='all') {
   const {config:c,errors}=validateConfig({...input,textEnabled:false});
   if(errors.length)throw new Error('Confira as medidas, as cores e as opções da caixa antes de preparar o pedido.');
   if(target!=='all'&&!FACES.some(f=>f.id===target))throw new Error('Escolha uma face válida.');
-  const theme=resolveTheme(c),style=ART_STYLES.find(s=>s.id===c.artPromptStyle),layout=panoramaLayout(c);
+  const theme=resolveTheme(c),style=ART_STYLES.find(s=>s.id===c.artPromptStyle),layout=panoramaLayout({...c,panoramaCuts:null});
   const requested=c.description.trim()||theme.name,panoramic=target==='all';
   const format=n=>(Math.round(n*100)/100).toLocaleString('pt-BR',{maximumFractionDigits:2});
   const ratio=layout.ratio.toLocaleString('pt-BR',{maximumFractionDigits:6});
@@ -290,11 +324,9 @@ export function artNodes(w,h,config,face='front',images=null) {
     if(!label||label.error||label.area.y>h/3)children.push(group(motifNodes(t,'leaf'),matrix(w*.79,h*.08,tiny/100)));
   }
   if(image) {
-    if(panoramic)children.push({type:'image',...panoramaPlacement(panoramaLayout(config),image.ratio,face),image});
-    else {
-      const iw=Math.min(w*.8,h*.55), ih=iw/image.ratio,fit=Math.min(1,h*.55/ih);
-      children.push({type:'image',x:(w-iw*fit)/2,y:(h-ih*fit)/2,w:iw*fit,h:ih*fit,image});
-    }
+    const placement=imagePlacement(w,h,config,face,image),node={type:'image',...placement.rect,image};
+    if(placement.clip)children.push(group([node],[1,0,0,1,0,0],{clip:placement.clip}));
+    else children.push(rectangle(placement.rect.x,placement.rect.y,placement.rect.w,placement.rect.h,t.bg),node);
   }
   children.push(...textNodes(w,h,config,face));
   return group(children,[1,0,0,1,0,0],{clip:{x:0,y:0,w,h}});
@@ -520,16 +552,16 @@ function renderPDFNodes(nodes,config,imageMap) {
     out.push('q');
     if(n.type==='group') {
       out.push(`${n.transform.map(round).join(' ')} cm`);
-      if(n.clip)out.push(`${n.clip.x} ${n.clip.y} ${n.clip.w} ${n.clip.h} re W n`);
+      if(n.clip)out.push(`${[n.clip.x,n.clip.y,n.clip.w,n.clip.h].map(round).join(' ')} re W n`);
       out.push(renderPDFNodes(n.children,config,imageMap));
     } else if(n.type==='image') {
       // Image samples run top to bottom; cancel the page's y reflection.
-      out.push(`${n.w} 0 0 ${-n.h} ${n.x} ${n.y+n.h} cm /${imageMap.get(n.image).name} Do`);
+      out.push(`${[n.w,0,0,-n.h,n.x,n.y+n.h].map(round).join(' ')} cm /${imageMap.get(n.image).name} Do`);
     } else {
       if(n.fill)out.push(`${pdfRGB(n.fill)} rg`);
       if(n.stroke)out.push(`${pdfRGB(n.stroke)} RG ${n.width||.2} w 1 J 1 j`);
       if(n.dash)out.push(`[${n.dash.join(' ')}] 0 d`);
-      if(n.type==='rect')out.push(`${n.x} ${n.y} ${n.w} ${n.h} re`);
+      if(n.type==='rect')out.push(`${[n.x,n.y,n.w,n.h].map(round).join(' ')} re`);
       if(n.type==='ellipse')out.push(ellipsePDF(n));
       if(n.type==='path')out.push(pdfPath(n.commands));
       out.push(n.fill&&n.stroke?'B':n.fill?'f':n.stroke?'S':'n');
