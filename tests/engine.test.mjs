@@ -198,6 +198,21 @@ test('saving roundtrips both colours, four images and four texts; v1 projects re
   const old=parseProject({app:'dobra-atelie',version:1,config:{height:19,color:'#456789'},image:images.front});
   assert.equal(old.config.detailColor,'#456789');assert.equal(old.config.textEnabled,false);assert.equal(old.images.front,old.images.back);assert.equal(old.images.left,undefined);
 });
+test('saved serif and typewriter selections migrate to creative fonts in every project format',()=>{
+  const replacements={classic:'caveat',modern:'fredoka',delicate:'patrickhand',bold:'baloo2',elegant:'pacifico',serif_bold:'lilitaone',compact:'amaticsc',typewriter:'architectsdaughter',typewriter_italic:'indieflower',typewriter_bold:'kalam',smallcaps:'bangers',artistic:'chewy'};
+  assert.equal(DEFAULTS.textFont,'caveat');
+  assert.deepEqual(new Set(TEXT_FONTS.map(f=>f.id)),new Set(Object.values(replacements)));
+  for(const [oldFont,newFont]of Object.entries(replacements)){
+    const original={textFont:oldFont,textEnabled:true,textSize:72,texts:{front:'Déborah & João'}};
+    assert.equal(normalizeConfig(original).textFont,newFont);assert.equal(original.textFont,oldFont);
+    for(const version of [1,2,3]){
+      const {config}=parseProject({app:'dobra-atelie',version,config:original,artwork:[],faces:{}});
+      assert.equal(config.textFont,newFont);assert.equal(config.textSize,72);assert.equal(config.texts.front,original.texts.front);
+      verifyPacking(createModel(config));
+    }
+  }
+  assert.ok(createModel({textFont:'unknown-font'}).errors.some(e=>e.includes('fonte')));
+});
 test('optional text supports accents in every font and is absent from empty faces',()=>{
   assert.equal(TEXT_FONTS.length,12);assert.equal(new Set(TEXT_FONTS.map(f=>f.id)).size,12);assert.equal(new Set(TEXT_FONTS.map(f=>f.name)).size,12);
   for(const font of TEXT_FONTS){

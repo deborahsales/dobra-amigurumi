@@ -1,0 +1,126 @@
+{
+  "repository": "google/fonts",
+  "ref": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
+  "fonts": [
+    {
+      "id": "caveat",
+      "label": "Manuscrita",
+      "folder": "ofl",
+      "filename": "Caveat[wght].ttf",
+      "weight": 600,
+      "sha": "f84acf2ce2d1b3329b194749530dbaec047e6df6",
+      "license": "OFL.txt",
+      "licenseSha": "6e5220c9576d98dfc684e550ddf0d87f68b3edc5"
+    },
+    {
+      "id": "patrickhand",
+      "label": "Feita à mão",
+      "folder": "ofl",
+      "filename": "PatrickHand-Regular.ttf",
+      "weight": null,
+      "sha": "fb45ccdbd344ab7f9f4ae98792521405e48cda3e",
+      "license": "OFL.txt",
+      "licenseSha": "4d5f9447f48357b6a4ac294604954b274059d119"
+    },
+    {
+      "id": "kalam",
+      "label": "Rabiscada",
+      "folder": "ofl",
+      "filename": "Kalam-Regular.ttf",
+      "weight": null,
+      "sha": "0c956a29348e69bff24a1ae8952fd0b42569311c",
+      "license": "OFL.txt",
+      "licenseSha": "6dd809659a8ccace7ccee108d024d33cd4f936da"
+    },
+    {
+      "id": "fredoka",
+      "label": "Arredondada",
+      "folder": "ofl",
+      "filename": "Fredoka[wdth,wght].ttf",
+      "weight": 500,
+      "sha": "349b6ecef8a358ede29b7bf74a08196be5d71b25",
+      "license": "OFL.txt",
+      "licenseSha": "791a98de7893b9bb62d06729745d00655e791a40"
+    },
+    {
+      "id": "pacifico",
+      "label": "Retrô",
+      "folder": "ofl",
+      "filename": "Pacifico-Regular.ttf",
+      "weight": null,
+      "sha": "27765d02ac13f241b1e207dbda7b2dd1b68280da",
+      "license": "OFL.txt",
+      "licenseSha": "33864cc8de4dd3ea8f3daab1154be28577918bae"
+    },
+    {
+      "id": "chewy",
+      "label": "Divertida",
+      "folder": "apache",
+      "filename": "Chewy-Regular.ttf",
+      "weight": null,
+      "sha": "609eeb393c167df58d434d3d007364944a727894",
+      "license": "LICENSE.txt",
+      "licenseSha": "d645695673349e3947e8e5ae42332d0ac3164cd7"
+    },
+    {
+      "id": "bangers",
+      "label": "Quadrinhos",
+      "folder": "ofl",
+      "filename": "Bangers-Regular.ttf",
+      "weight": null,
+      "sha": "9b0f8c1f1b45e7bb4971b7d6a8604f9aacacdd32",
+      "license": "OFL.txt",
+      "licenseSha": "bf717d4be410cf7616b9bd345b40ab4817a26e6f"
+    },
+    {
+      "id": "lilitaone",
+      "label": "Fofinha",
+      "folder": "ofl",
+      "filename": "LilitaOne-Regular.ttf",
+      "weight": null,
+      "sha": "fdec368cbd478e437f0476a538c3868723aed296",
+      "license": "OFL.txt",
+      "licenseSha": "055594f2f330e835940070f2d5944a2331c7c299"
+    },
+    {
+      "id": "amaticsc",
+      "label": "Alongada",
+      "folder": "ofl",
+      "filename": "AmaticSC-Bold.ttf",
+      "weight": null,
+      "sha": "96a7ab61913937e653dbad4f93bfa5d254956e7e",
+      "license": "OFL.txt",
+      "licenseSha": "f77af8218e0c0e043eaaa3ba68de617c0aac1559"
+    },
+    {
+      "id": "baloo2",
+      "label": "Balão",
+      "folder": "ofl",
+      "filename": "Baloo2[wght].ttf",
+      "weight": 600,
+      "sha": "bc1b9f1191c0d6d23cb2ce0af66aba82ddbf8d6c",
+      "license": "OFL.txt",
+      "licenseSha": "72adb492d4f0ede2a9dbdefed607f33ad3a6fc68"
+    },
+    {
+      "id": "indieflower",
+      "label": "Descontraída",
+      "folder": "ofl",
+      "filename": "IndieFlower-Regular.ttf",
+      "weight": null,
+      "sha": "547ca58030e8a7de5aca859a11fc00f14511a7ea",
+      "license": "OFL.txt",
+      "licenseSha": "5d36552c7d43e76254d16067ec609281d13b0e45"
+    },
+    {
+      "id": "architectsdaughter",
+      "label": "Desenhada",
+      "folder": "ofl",
+      "filename": "ArchitectsDaughter-Regular.ttf",
+      "weight": null,
+      "sha": "d0d88ba0cbf5dcceac4791721becd4d75e64c31f",
+      "license": "OFL.txt",
+      "licenseSha": "06117d9dfe08e8ac9818115cc1898c05a197c27f"
+    }
+  ]
+}

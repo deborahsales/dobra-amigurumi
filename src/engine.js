@@ -1,9 +1,10 @@
 import { FONT_LIBRARY } from './fonts.js';
 /* All manufacturing geometry is expressed in millimetres. No DOM dependencies. */
-export const DEFAULTS = Object.freeze({ height: 19, width: 8, depth: 7, ease: 0.5, thickness: 0.3, margin: 6, theme: 'botanico', description: '', lid: 'tuck', mainColor: '#f5f1e5', detailColor: '#6c8267', folds: true, window: false, windows: ['front'], windowBorder: 1.2, ink: false, textEnabled:false, texts:{front:'',back:'',left:'',right:''},textFont:'classic',textSize:16,textPosition:'bottom',artPromptStyle:'flat',panoramaCuts:null,imageTransforms:{} });
+export const DEFAULTS = Object.freeze({ height: 19, width: 8, depth: 7, ease: 0.5, thickness: 0.3, margin: 6, theme: 'botanico', description: '', lid: 'tuck', mainColor: '#f5f1e5', detailColor: '#6c8267', folds: true, window: false, windows: ['front'], windowBorder: 1.2, ink: false, textEnabled:false, texts:{front:'',back:'',left:'',right:''},textFont:'caveat',textSize:16,textPosition:'bottom',artPromptStyle:'flat',panoramaCuts:null,imageTransforms:{} });
 export const FACES = Object.freeze([{id:'front',name:'Frente'},{id:'back',name:'Verso'},{id:'left',name:'Lateral esquerda'},{id:'right',name:'Lateral direita'}]);
 export const PANORAMA_ORDER = Object.freeze(['front','right','back','left']);
 export const TEXT_FONTS = Object.freeze(FONT_LIBRARY.map(({id,name})=>({id,name})));
+const LEGACY_TEXT_FONTS = Object.freeze({classic:'caveat',modern:'fredoka',delicate:'patrickhand',bold:'baloo2',elegant:'pacifico',serif_bold:'lilitaone',compact:'amaticsc',typewriter:'architectsdaughter',typewriter_italic:'indieflower',typewriter_bold:'kalam',smallcaps:'bangers',artistic:'chewy'});
 export const ART_STYLES = Object.freeze([
   {id:'flat',name:'Ilustração delicada',instruction:'Ilustração delicada, formas suaves, cores sólidas e acabamento limpo, como uma coleção de papelaria artesanal.'},
   {id:'watercolor',name:'Aquarela suave',instruction:'Aquarela suave com textura sutil de pintura, bordas delicadas e contornos legíveis na impressão.'},
@@ -64,6 +65,7 @@ export function normalizeConfig(input={}) {
   const preset=THEMES.find(t=>t.id===input.theme)||THEMES[0];
   const c={...DEFAULTS};
   for(const key of Object.keys(DEFAULTS))if(Object.hasOwn(input,key))c[key]=input[key];
+  if(Object.hasOwn(LEGACY_TEXT_FONTS,c.textFont))c.textFont=LEGACY_TEXT_FONTS[c.textFont];
   c.mainColor=input.mainColor??preset.bg;
   c.detailColor=input.detailColor??input.color??preset.ink;
   c.windows=Array.isArray(c.windows)?[...c.windows]:['front'];
