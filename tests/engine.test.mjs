@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createModel, createPDF, DEFAULTS, LIDS, THEMES, FACES, TEXT_FONTS, ART_STYLES, buildArtPrompt, layoutText, normalizeConfig, projectData, parseProject, pageSVG, windowGeometry, placementMatrix, resolveTheme } from '../src/engine.js';
+import { createModel, createPDF, DEFAULTS, LIDS, THEMES, FACES, PANORAMA_ORDER, TEXT_FONTS, ART_STYLES, buildArtPrompt, panoramaLayout, panoramaPlacement, layoutText, normalizeConfig, projectData, parseProject, pageSVG, windowGeometry, placementMatrix, resolveTheme } from '../src/engine.js';
 
 const epsilon=.006;
 const overlaps=(a,b)=>a.x<b.x+b.w-epsilon&&a.x+a.w>b.x+epsilon&&a.y<b.y+b.h-epsilon&&a.y+a.h>b.y+epsilon;
@@ -48,6 +48,59 @@ test('invalid dimensions and margins cannot generate a PDF',()=>{
   }
 });
 const flatten=nodes=>nodes.flatMap(n=>[n,...n.children?flatten(n.children):[]]);
+const panoramaConfig={height:9.97,width:9.97,depth:4.97,ease:0,thickness:.3};
+test('panorama spans the full perimeter in assembly order with unequal contiguous face widths',()=>{
+  for(const c of [DEFAULTS,panoramaConfig,{height:12,width:14,depth:3,ease:1,thickness:.6}]){
+    const layout=panoramaLayout(c),model=createModel(c);verifyPacking(model);
+    assert.deepEqual(layout.faces.map(f=>f.id),['front','right','back','left']);assert.equal(layout.width,2*(model.W+model.D));assert.equal(layout.height,model.H);
+    let end=0;
+    for(const f of layout.faces){assert.ok(Math.abs(f.x-end)<epsilon);assert.equal(f.width,['front','back'].includes(f.id)?model.W:model.D);assert.ok(Math.abs(f.start-f.x/layout.width)<epsilon);end=f.x+f.width;}
+    assert.ok(Math.abs(end-layout.width)<epsilon);assert.ok(Math.abs(layout.faces.at(-1).end-1)<epsilon);
+  }
+  assert.deepEqual(panoramaLayout(panoramaConfig).faces.map(f=>f.x),[0,100,150,250]);
+});
+test('a single panoramic source paints the correct full-face slices in SVG and PDF without printed guides',async()=>{
+  const asset=JSON.parse(await readFile(new URL('./fixtures/panorama.json',import.meta.url),'utf8'));
+  const images=Object.fromEntries(PANORAMA_ORDER.map(id=>[id,asset])),m=createModel({...panoramaConfig,folds:false},images);verifyPacking(m);
+  const layout=panoramaLayout(panoramaConfig);
+  for(const face of layout.faces){
+    const nodes=flatten(m.pieces.find(p=>p.id===face.id).nodes),image=nodes.find(n=>n.type==='image');
+    assert.equal(image.image,asset);assert.equal(image.x,-face.x);assert.equal(image.y,0);assert.equal(image.w,300);assert.equal(image.h,100);
+    const clip=nodes.find(n=>n.clip);assert.deepEqual(clip.clip,{x:0,y:0,w:face.width,h:100});
+    assert.equal(clip.children.length,2,'Only the selected background and panoramic image, without unrelated theme motifs');
+    assert.ok(Math.abs((face.width-image.x)/image.w-face.end)<epsilon);
+  }
+  const pdf=Buffer.from(createPDF(m)).toString('latin1');assert.equal((pdf.match(/\/Subtype \/Image/g)||[]).length,1);assert.equal((pdf.match(/\/Im1 Do/g)||[]).length,4);
+  assert.ok(!pdf.includes('[2 2]'));assert.ok(!/\b(?:BT|ET|Tf|Tj|TJ)\b/.test(pdf));
+  const svgs=m.pages.map(p=>pageSVG(p,m.config)).join('');assert.ok(!svgs.includes('<text'));assert.ok(!svgs.includes('stroke-dasharray="2 2"'));assert.ok(svgs.includes('x="-250"'));assert.ok(svgs.includes('x="-100"'));
+});
+test('panorama keeps horizontal divisions for other image ratios and updates after dimensions change',async()=>{
+  const asset=JSON.parse(await readFile(new URL('./fixtures/panorama.json',import.meta.url),'utf8'));
+  const layout=panoramaLayout(panoramaConfig);
+  for(const ratio of [1,3,6])for(const face of layout.faces){
+    const p=panoramaPlacement(layout,ratio,face.id);assert.equal(p.x,-face.x);assert.equal(p.w,300);assert.equal(p.w/p.h,ratio);
+    assert.ok(Math.abs(-p.x/p.w-face.start)<epsilon);assert.ok(Math.abs((face.width-p.x)/p.w-face.end)<epsilon);
+  }
+  assert.ok(panoramaPlacement(layout,1).y<0);assert.ok(panoramaPlacement(layout,6).y>0);
+  assert.throws(()=>panoramaPlacement(layout,0));assert.throws(()=>panoramaPlacement(layout,NaN));assert.throws(()=>panoramaPlacement(layout,3,'lid'));
+  const images=Object.fromEntries(PANORAMA_ORDER.map(id=>[id,asset]));
+  const changed=createModel({...panoramaConfig,width:14.97},images),left=flatten(changed.pieces.find(p=>p.id==='left').nodes).find(n=>n.type==='image');
+  assert.ok(Math.abs(left.x+350)<epsilon);assert.ok(Math.abs(left.w-400)<epsilon);assert.ok(Math.abs(left.h-400/3)<epsilon);
+  assert.ok(createModel({height:NaN},images).errors.length);
+  assert.equal(flatten(changed.pieces.flatMap(p=>p.nodes)).filter(n=>n.windowCut).length,0);
+  const visor=createModel({...panoramaConfig,window:true,windows:['right']},images);assert.equal(flatten(visor.pieces.flatMap(p=>p.nodes)).filter(n=>n.windowCut).length,1);
+});
+test('shared panoramic projects store one source, preserve individual overrides and reopen older formats',async()=>{
+  const asset=JSON.parse(await readFile(new URL('./fixtures/panorama.json',import.meta.url),'utf8'));
+  const individual=JSON.parse(await readFile(new URL('./fixtures/images.json',import.meta.url),'utf8')).front;
+  const images=Object.fromEntries(PANORAMA_ORDER.map(id=>[id,asset])),doc=projectData(panoramaConfig,images);
+  assert.equal(doc.version,3);assert.equal(doc.artwork.length,1);assert.equal(Object.values(doc.faces).filter(i=>i===0).length,4);
+  const parsed=parseProject(JSON.parse(JSON.stringify(doc)));assert.equal(parsed.images.front,parsed.images.left);assert.equal(parsed.images.front.mode,'panorama');
+  images.back=individual;delete images.left;
+  const changed=parseProject(JSON.parse(JSON.stringify(projectData(panoramaConfig,images))));assert.equal(changed.images.front,changed.images.right);assert.notEqual(changed.images.back,changed.images.front);assert.equal(changed.images.left,undefined);
+  const older=parseProject({app:'dobra-atelie',version:2,config:panoramaConfig,images:{front:individual}});assert.deepEqual(older.images.front,individual);
+  assert.throws(()=>parseProject({...doc,faces:{front:99}}));assert.throws(()=>parseProject({...doc,faces:{lid:0}}));assert.throws(()=>parseProject({...doc,artwork:[{...asset,ratio:0}]}));
+});
 test('selected transparent faces alone receive cutouts, with 5 mm material overlap',()=>{
   const model=createModel({window:true,windows:['front','left'],windowBorder:1.2});verifyPacking(model);
   for(const p of model.pieces.filter(p=>['front','back','left','right'].includes(p.id))){
@@ -165,19 +218,20 @@ test('text layout avoids acrylic apertures and blocks text that cannot fit',()=>
   assert.ok(createModel({textEnabled:true,texts:{front:'🙂'}}).errors.some(e=>e.includes('fonte')));
   assert.ok(createModel({height:3,width:3,depth:3,window:true,textEnabled:true,texts:{front:'W'.repeat(80)}}).errors.some(e=>e.includes('não cabe')));
 });
-test('shared art request asks for one reusable square composition using the exact theme and palette',()=>{
+test('panoramic art request gives the total size, each width and exact assembly order in one image',()=>{
   const prompt=buildArtPrompt({...DEFAULTS,description:'Raposinha enfermeira',mainColor:'#ddeeff',detailColor:'#335577',artPromptStyle:'watercolor',texts:{front:'Nome privado'}});
   assert.ok(prompt.includes('TEMA: Raposinha enfermeira'));assert.ok(prompt.includes('#ddeeff'));assert.ok(prompt.includes('#335577'));assert.ok(prompt.includes('Aquarela suave'));
   assert.ok(prompt.includes('8,53 × 19,53 cm'));assert.ok(prompt.includes('7,53 × 19,53 cm'));
-  assert.ok(prompt.startsWith('Crie uma única ilustração'));assert.ok(prompt.includes('composição quadrada (1:1)'));assert.ok(prompt.includes('repetirá exatamente esta mesma imagem'));assert.ok(prompt.includes('sem esticar'));
-  assert.ok(prompt.includes('6,02 × 6,02 cm'));assert.ok(prompt.includes('Somente um arquivo PNG, chamado arte-unica.png'));
-  for(const unwanted of ['frente.png','verso.png','lateral-esquerda.png','lateral-direita.png','coleção de quatro ilustrações','varie as poses'])assert.ok(!prompt.includes(unwanted));
+  assert.ok(prompt.startsWith('Crie uma única imagem panorâmica'));assert.ok(prompt.includes('32,12 × 19,53 cm'));assert.ok(prompt.includes('frente → lateral direita → verso → lateral esquerda'));
+  assert.ok(prompt.includes('Somente um arquivo PNG, chamado panorama-caixa.png'));assert.ok(prompt.includes('x=8,53 até x=16,06 cm'));assert.ok(prompt.includes('x=24,59 até x=32,12 cm'));assert.ok(prompt.includes('As faixas não são necessariamente iguais'));
+  const order=['FRENTE:','LATERAL DIREITA:','VERSO:','LATERAL ESQUERDA:'].map(s=>prompt.indexOf(s));assert.ok(order.every((x,i)=>x>=0&&(!i||x>order[i-1])));
+  for(const unwanted of ['frente.png','verso.png','lateral-esquerda.png','lateral-direita.png','composição quadrada','repetirá exatamente esta mesma imagem'])assert.ok(!prompt.includes(unwanted));
   assert.ok(prompt.includes('fundo realmente transparente'));assert.ok(prompt.includes('Não inclua letras'));assert.ok(!prompt.includes('Nome privado'));
   const ink=buildArtPrompt({...DEFAULTS,mainColor:'#998866',ink:true});assert.ok(ink.includes('fundo da caixa #ffffff'));
 });
-test('shared art request preserves visor guidance and chooses a square that fits short boxes too',()=>{
-  const prompt=buildArtPrompt({height:3,width:12,depth:8,ease:0});assert.ok(prompt.includes('1,67 × 1,67 cm'));
-  const window=buildArtPrompt({...DEFAULTS,window:true,windows:['left']});assert.ok(window.includes('visor central de 5,13 × 17,13 cm'));assert.ok(window.includes('A abertura recortará a imagem'));assert.ok(window.includes('não desenhe o visor'));
+test('panoramic art request preserves visor guidance and sizes short boxes correctly',()=>{
+  const prompt=buildArtPrompt({height:3,width:12,depth:8,ease:0});assert.ok(prompt.includes('40,12 × 3,03 cm'));
+  const window=buildArtPrompt({...DEFAULTS,window:true,windows:['left']});assert.ok(window.includes('visor central de 5,13 × 17,13 cm'));assert.ok(window.includes('A abertura recortará a imagem'));assert.ok(window.includes('Não desenhe o visor'));
   assert.throws(()=>buildArtPrompt({depth:3,window:true,windows:['left'],windowBorder:3}),/moldura/);
 });
 test('one-face requests account for the selected visor and reject unusable measures',()=>{

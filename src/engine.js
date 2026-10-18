@@ -2,6 +2,7 @@ import { FONT_LIBRARY } from './fonts.js';
 /* All manufacturing geometry is expressed in millimetres. No DOM dependencies. */
 export const DEFAULTS = Object.freeze({ height: 19, width: 8, depth: 7, ease: 0.5, thickness: 0.3, margin: 6, theme: 'botanico', description: '', lid: 'tuck', mainColor: '#f5f1e5', detailColor: '#6c8267', folds: true, window: false, windows: ['front'], windowBorder: 1.2, ink: false, textEnabled:false, texts:{front:'',back:'',left:'',right:''},textFont:'classic',textSize:16,textPosition:'bottom',artPromptStyle:'flat' });
 export const FACES = Object.freeze([{id:'front',name:'Frente'},{id:'back',name:'Verso'},{id:'left',name:'Lateral esquerda'},{id:'right',name:'Lateral direita'}]);
+export const PANORAMA_ORDER = Object.freeze(['front','right','back','left']);
 export const TEXT_FONTS = Object.freeze(FONT_LIBRARY.map(({id,name})=>({id,name})));
 export const ART_STYLES = Object.freeze([
   {id:'flat',name:'Ilustração delicada',instruction:'Ilustração delicada, formas suaves, cores sólidas e acabamento limpo, como uma coleção de papelaria artesanal.'},
@@ -69,17 +70,31 @@ export function normalizeConfig(input={}) {
   c.texts=Object.fromEntries(FACES.map(f=>[f.id,String(input.texts?.[f.id]||'').normalize('NFC').replace(/[\r\n\t]/g,' ').slice(0,80)]));
   return c;
 }
-export function projectData(config,images={}) {return {app:'dobra-atelie',version:2,config:normalizeConfig(config),images:{...images}};}
+export function projectData(config,images={}) {
+  const artwork=[],references=new Map(),faces={};
+  for(const {id}of FACES){const image=images[id];if(!image)continue;if(!references.has(image)){references.set(image,artwork.length);artwork.push(image);}faces[id]=references.get(image);}
+  return {app:'dobra-atelie',version:3,config:normalizeConfig(config),artwork,faces};
+}
 export function parseProject(doc) {
-  if(!doc||doc.app!=='dobra-atelie'||![1,2].includes(doc.version)||!doc.config||typeof doc.config!=='object')throw new Error('Este arquivo não é um projeto Dobra Ateliê.');
+  if(!doc||doc.app!=='dobra-atelie'||![1,2,3].includes(doc.version)||!doc.config||typeof doc.config!=='object')throw new Error('Este arquivo não é um projeto Dobra Ateliê.');
   const checked=validateConfig(normalizeConfig(doc.config));
   if(checked.errors.length)throw new Error(checked.errors.join(' '));
-  const images=doc.version===1?(doc.image?{front:doc.image,back:doc.image}:{}):(doc.images||{});
+  let images=doc.version===1?(doc.image?{front:doc.image,back:doc.image}:{}):(doc.images||{});
+  if(doc.version===3){
+    if(!Array.isArray(doc.artwork)||doc.artwork.length>4||!doc.faces||typeof doc.faces!=='object'||Array.isArray(doc.faces))throw new Error('Artes do projeto inválidas.');
+    images={};
+    for(const [face,index]of Object.entries(doc.faces)){
+      if(!FACES.some(f=>f.id===face)||!Number.isInteger(index)||index<0||index>=doc.artwork.length||!doc.artwork[index])throw new Error('Referência de imagem inválida.');
+      images[face]=doc.artwork[index];
+    }
+  }
   if(typeof images!=='object'||Array.isArray(images)||Object.keys(images).some(k=>!FACES.some(f=>f.id===k)))throw new Error('Faces das imagens inválidas.');
   for(const image of Object.values(images)) {
     if(!image)continue;
     if(typeof image.dataUrl!=='string'||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(image.dataUrl))throw new Error('Imagem do projeto inválida.');
     if(image.sourceDataUrl&&!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(image.sourceDataUrl))throw new Error('Imagem de origem inválida.');
+    if(image.mode!==undefined&&image.mode!=='panorama')throw new Error('Modo de imagem inválido.');
+    if(image.mode==='panorama'&&(!Number.isFinite(image.ratio)||image.ratio<=0))throw new Error('Proporção do panorama inválida.');
   }
   return {config:checked.config,images};
 }
@@ -106,37 +121,57 @@ export function validateConfig(input) {
   c.windows = Array.isArray(c.windows) ? [...new Set(c.windows.filter(x=>['front','right','back','left'].includes(x)))] : ['front'];
   return {config:c, errors};
 }
+export function panoramaLayout(input={}) {
+  const {config:c,errors}=validateConfig({...input,textEnabled:false});
+  if(errors.length)throw new Error('Confira as medidas e as opções da caixa antes de preparar o panorama.');
+  const front=(c.width+c.ease)*10+c.thickness,side=(c.depth+c.ease)*10+c.thickness,height=(c.height+c.ease)*10+c.thickness;
+  const width=2*(front+side);let x=0;
+  const faces=PANORAMA_ORDER.map(id=>{const w=['front','back'].includes(id)?front:side,face={id,name:FACES.find(f=>f.id===id).name,x,width:w,height,start:x/width,end:(x+w)/width};x+=w;return face;});
+  return {width,height,ratio:width/height,faces};
+}
+export function panoramaPlacement(layout,ratio,faceId=null) {
+  if(!Number.isFinite(ratio)||ratio<=0)throw new Error('Proporção do panorama inválida.');
+  const face=faceId===null?null:layout.faces.find(f=>f.id===faceId);
+  if(faceId!==null&&!face)throw new Error('Face do panorama inválida.');
+  // Keep every horizontal source pixel: only the vertical framing can change.
+  const h=layout.width/ratio;
+  return {x:face?-face.x:0,y:(layout.height-h)/2,w:layout.width,h};
+}
 export function buildArtPrompt(input={},target='all') {
   const {config:c,errors}=validateConfig({...input,textEnabled:false});
   if(errors.length)throw new Error('Confira as medidas, as cores e as opções da caixa antes de preparar o pedido.');
   if(target!=='all'&&!FACES.some(f=>f.id===target))throw new Error('Escolha uma face válida.');
-  const theme=resolveTheme(c),style=ART_STYLES.find(s=>s.id===c.artPromptStyle);
-  const requested=c.description.trim()||theme.name;
-  const height=(c.height+c.ease)*10+c.thickness,width=(c.width+c.ease)*10+c.thickness,depth=(c.depth+c.ease)*10+c.thickness;
+  const theme=resolveTheme(c),style=ART_STYLES.find(s=>s.id===c.artPromptStyle),layout=panoramaLayout(c);
+  const requested=c.description.trim()||theme.name,panoramic=target==='all';
   const format=n=>(Math.round(n*100)/100).toLocaleString('pt-BR',{maximumFractionDigits:2});
-  const shared=target==='all',selected=shared?FACES:FACES.filter(f=>f.id===target);
-  const sharedSize=Math.min(width*.8,depth*.8,height*.55);
+  const ratio=layout.ratio.toLocaleString('pt-BR',{maximumFractionDigits:6});
+  const selected=panoramic?layout.faces:layout.faces.filter(f=>f.id===target);
   const plan=selected.map((face,i)=>{
-    const w=['front','back'].includes(face.id)?width:depth;
-    if(c.window&&c.windows.includes(face.id)&&!windowGeometry(w,height,c))throw new Error('Confira a largura da moldura do visor antes de preparar o pedido de arte.');
-    const areaW=Math.min(w*.8,height*.55),areaH=height*.55;
-    const window=c.window&&c.windows.includes(face.id)?` Esta face terá visor central de ${format((w-2*c.windowBorder*10)/10)} × ${format((height-2*c.windowBorder*10)/10)} cm. A abertura recortará a imagem aplicada, inclusive seus elementos centrais; não desenhe o visor na arte.`:'';
-    return `${i+1}. ${face.name.toUpperCase()}: face final de ${format(w/10)} × ${format(height/10)} cm (largura × altura). A ilustração será centralizada numa área de até ${format(areaW/10)} × ${format(areaH/10)} cm.${window}`;
+    const w=face.width,h=face.height,hasWindow=c.window&&c.windows.includes(face.id);
+    const visor=hasWindow?windowGeometry(w,h,c):null;
+    if(hasWindow&&!visor)throw new Error('Confira a largura da moldura do visor antes de preparar o pedido de arte.');
+    const position=panoramic?` Faixa horizontal de x=${format(face.x/10)} até x=${format((face.x+w)/10)} cm, equivalente a ${format(face.start*100)}% até ${format(face.end*100)}% da largura total.`:` A arte será centralizada numa área de até ${format(Math.min(w*.8,h*.55)/10)} × ${format(h*.55/10)} cm.`;
+    const window=visor?` Esta face terá visor central de ${format(visor.w/10)} × ${format(visor.h/10)} cm, com moldura de ${format(c.windowBorder)} cm. A abertura recortará a imagem: concentre os detalhes dessa faixa na moldura e não coloque personagens ou elementos essenciais no centro. Não desenhe o visor nem seu contorno na arte.`:'';
+    return `${i+1}. ${face.name.toUpperCase()}: ${format(w/10)} × ${format(h/10)} cm (largura × altura).${position}${window}`;
   });
+  const scale=4096/Math.max(layout.width,layout.height);
   return [
-    shared?'Crie uma única ilustração original para ser repetida nas quatro faces de uma caixa de amigurumi. Quero apenas uma imagem, sem coleção, variações ou divisão em quatro partes.':'Crie uma ilustração original para decorar uma face de uma caixa de amigurumi.',
+    panoramic?'Crie uma única imagem panorâmica original com as quatro faces de uma caixa de amigurumi lado a lado, em uma única fileira, na ordem e nas larguras indicadas abaixo. Cada faixa terá sua própria composição; tudo deve estar dentro de um único arquivo.':'Crie uma ilustração original para decorar uma face de uma caixa de amigurumi.',
     `TEMA: ${requested}`,
     `ESTILO: ${style.instruction}`,
     `PALETA: fundo da caixa ${theme.bg}; detalhes ${theme.ink}. Use a cor dos detalhes como referência principal para os desenhos e tons harmoniosos com esse fundo.`,
     'A imagem será aplicada sobre o fundo da caixa pelo site. Entregue o desenho com fundo realmente transparente, sem bloco branco e sem pintar o fundo na imagem.',
-    shared?`Use uma composição quadrada (1:1), com o personagem ou os motivos do tema inteiros, bem centralizados e com respiro transparente nas bordas. Prefira poucos elementos legíveis em tamanho pequeno. A área quadrada de referência na face mais estreita é de até ${format(sharedSize/10)} × ${format(sharedSize/10)} cm.`:'Use uma composição centralizada, com os elementos inteiros e respiro transparente nas bordas. Preserve as proporções da área de aplicação.',
-    shared?'O site repetirá exatamente esta mesma imagem na frente, no verso e nas duas laterais, ajustando apenas seu tamanho proporcionalmente, sem esticar. A arte deve funcionar sozinha em cada face: sem panorama, continuidade entre bordas ou elementos que dependam das outras faces. Não desenhe quatro versões, quadrantes, painéis ou uma colagem.':'Esta imagem pode ser combinada com outras artes da mesma caixa. Mantenha o personagem, a paleta e o acabamento coerentes com o tema.',
+    ...(panoramic?[
+      `TAMANHO TOTAL DA ARTE: ${format(layout.width/10)} × ${format(layout.height/10)} cm (largura total × altura). Proporção largura/altura: ${ratio}:1. Uma referência de resolução é ${Math.round(layout.width*scale)} × ${Math.round(layout.height*scale)} px. Preserve a proporção se usar outra resolução.`,
+      'ORDEM DA ESQUERDA PARA A DIREITA: frente → lateral direita → verso → lateral esquerda. As faixas ocupam toda a altura. A largura total é a soma das quatro larguras, sem espaços, margens externas ou separadores. As medidas já incluem os ajustes da caixa; não acrescente folga.',
+      'As faixas não são necessariamente iguais: respeite as larguras e posições de cada face. Faça um fundo visualmente contínuo e composições complementares. Mantenha personagens e detalhes importantes dentro da faixa correspondente, longe das transições. A borda direita do panorama encontrará a borda esquerda ao fechar a caixa.',
+    ]:['Use uma composição centralizada, com os elementos inteiros e respiro transparente nas bordas. Preserve as proporções da área de aplicação.']),
     '\nMEDIDAS DE REFERÊNCIA — NÃO DESENHAR NA IMAGEM',
     ...plan,
     '\nARQUIVO A ENTREGAR',
-    shared?'Somente um arquivo PNG, chamado arte-unica.png, com uma única composição quadrada. Esta mesma imagem será reutilizada nas quatro faces; não entregue arquivos ou desenhos diferentes por face.':`Somente um arquivo PNG para a face ${selected[0].name.toLowerCase()}. Não inclua as outras faces nesta imagem.`,
-    'Prefira alta resolução, com pelo menos 1500 px no maior lado quando disponível. Não corte os personagens.',
-    'Entregue somente a ilustração, sem caixa montada, simulação 3D de embalagem, molde, abas, linhas de corte, cotas, grades, colagem ou marcas de montagem.',
+    panoramic?'Somente um arquivo PNG, chamado panorama-caixa.png, com as quatro faces lado a lado. O site dividirá a imagem horizontalmente nas larguras indicadas e aplicará cada trecho na face correspondente, preenchendo a face inteira. Não repita uma mesma imagem inteira em cada face.':`Somente um arquivo PNG para a face ${selected[0].name.toLowerCase()}. Não inclua as outras faces nesta imagem.`,
+    panoramic?'Preencha a área útil inteira do panorama; não adicione bordas, espaços entre faixas, linhas divisórias, rótulos ou guias. Não inclua tampa, fundo de encaixe nem abas de colagem.':'Prefira alta resolução, com pelo menos 1500 px no maior lado quando disponível. Não corte os personagens.',
+    'Entregue somente a arte plana, sem caixa montada, simulação 3D de embalagem, molde, abas, linhas de corte, cotas, grades, colagem ou marcas de montagem.',
     'Não inclua letras, nomes, frases, números, logotipos nem marca-d’água. Os textos serão adicionados depois no próprio site, com a fonte escolhida.',
   ].join('\n\n');
 }
@@ -242,7 +277,8 @@ function motifNodes(t, kind = t.motif) {
 export function artNodes(w,h,config,face='front',images=null) {
   const t=resolveTheme(config), children=[rectangle(0,0,w,h,t.bg)];
   const image=images?.dataUrl?(['front','back'].includes(face)?images:null):images?.[face];
-  if(t.motif !== 'plain') {
+  const panoramic=image?.mode==='panorama';
+  if(t.motif !== 'plain'&&!panoramic) {
     children.push(pth([['M',0,h*.81],['C',w*.3,h*.74,w*.66,h*.95,w,h*.83],['L',w,h],['L',0,h],['Z']],mixColor(t.ink,t.bg,.86)));
     for(let i=0;i<18;i++) {const x=((i*47+9)%97)/100*w, y=((i*31+11)%97)/100*h;children.push(ellipse(x,y,.35+(i%3)*.1,.35+(i%3)*.1,mixColor(t.ink,t.bg,.68)));}
     const s=Math.min(w*.66,h*.39), y=clamp(h*.32-s*.16,4,Math.max(4,h-s-4));
@@ -254,9 +290,11 @@ export function artNodes(w,h,config,face='front',images=null) {
     if(!label||label.error||label.area.y>h/3)children.push(group(motifNodes(t,'leaf'),matrix(w*.79,h*.08,tiny/100)));
   }
   if(image) {
-    const iw=Math.min(w*.8,h*.55), ih=iw/image.ratio;
-    const fit=Math.min(1,h*.55/ih);
-    children.push({type:'image',x:(w-iw*fit)/2,y:(h-ih*fit)/2,w:iw*fit,h:ih*fit,image});
+    if(panoramic)children.push({type:'image',...panoramaPlacement(panoramaLayout(config),image.ratio,face),image});
+    else {
+      const iw=Math.min(w*.8,h*.55), ih=iw/image.ratio,fit=Math.min(1,h*.55/ih);
+      children.push({type:'image',x:(w-iw*fit)/2,y:(h-ih*fit)/2,w:iw*fit,h:ih*fit,image});
+    }
   }
   children.push(...textNodes(w,h,config,face));
   return group(children,[1,0,0,1,0,0],{clip:{x:0,y:0,w,h}});
