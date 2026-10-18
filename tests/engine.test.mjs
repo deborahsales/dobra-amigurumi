@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createModel, createPDF, DEFAULTS, LIDS, THEMES, FACES, PANORAMA_ORDER, TEXT_FONTS, ART_STYLES, buildArtPrompt, panoramaLayout, panoramaPlacement, movePanoramaCut, imagePlacement, layoutText, normalizeConfig, projectData, parseProject, pageSVG, windowGeometry, placementMatrix, resolveTheme } from '../src/engine.js';
+import { createModel, createPDF, DEFAULTS, LIDS, THEMES, FACES, PANORAMA_ORDER, TEXT_FONTS, ART_STYLES, buildArtPrompt, panoramaLayout, panoramaPlacement, movePanoramaCut, imagePlacement, layoutText, textNodes, normalizeConfig, projectData, parseProject, pageSVG, windowGeometry, placementMatrix, resolveTheme } from '../src/engine.js';
 
 const epsilon=.006;
 const overlaps=(a,b)=>a.x<b.x+b.w-epsilon&&a.x+a.w>b.x+epsilon&&a.y<b.y+b.h-epsilon&&a.y+a.h>b.y+epsilon;
@@ -199,7 +199,7 @@ test('saving roundtrips both colours, four images and four texts; v1 projects re
   assert.equal(old.config.detailColor,'#456789');assert.equal(old.config.textEnabled,false);assert.equal(old.images.front,old.images.back);assert.equal(old.images.left,undefined);
 });
 test('optional text supports accents in every font and is absent from empty faces',()=>{
-  assert.equal(TEXT_FONTS.length,4);
+  assert.equal(TEXT_FONTS.length,12);assert.equal(new Set(TEXT_FONTS.map(f=>f.id)).size,12);assert.equal(new Set(TEXT_FONTS.map(f=>f.name)).size,12);
   for(const font of TEXT_FONTS){
     const m=createModel({textEnabled:true,textFont:font.id,texts:{front:'Déborah & João — 2026 ♥',right:'Liz'}});verifyPacking(m);
     const front=flatten(m.pieces.find(p=>p.id==='front').nodes),back=flatten(m.pieces.find(p=>p.id==='back').nodes);
@@ -220,14 +220,14 @@ test('text layout avoids acrylic apertures and blocks text that cannot fit',()=>
 });
 test('panoramic art request gives the total size, each width and exact assembly order in one image',()=>{
   const prompt=buildArtPrompt({...DEFAULTS,description:'Raposinha enfermeira',mainColor:'#ddeeff',detailColor:'#335577',artPromptStyle:'watercolor',texts:{front:'Nome privado'}});
-  assert.ok(prompt.includes('TEMA: Raposinha enfermeira'));assert.ok(prompt.includes('#ddeeff'));assert.ok(prompt.includes('#335577'));assert.ok(prompt.includes('Aquarela suave'));
+  assert.ok(prompt.includes('TEMA: Raposinha enfermeira'));assert.ok(!prompt.includes('#ddeeff'));assert.ok(!prompt.includes('#335577'));assert.ok(prompt.includes('Aquarela suave'));
   assert.ok(prompt.includes('8,53 × 19,53 cm'));assert.ok(prompt.includes('7,53 × 19,53 cm'));
   assert.ok(prompt.startsWith('Crie uma única imagem panorâmica'));assert.ok(prompt.includes('32,12 × 19,53 cm'));assert.ok(prompt.includes('frente → lateral direita → verso → lateral esquerda'));
   assert.ok(prompt.includes('Somente um arquivo PNG, chamado panorama-caixa.png'));assert.ok(prompt.includes('x=8,53 até x=16,06 cm'));assert.ok(prompt.includes('x=24,59 até x=32,12 cm'));assert.ok(prompt.includes('As faixas não são necessariamente iguais'));
   const order=['FRENTE:','LATERAL DIREITA:','VERSO:','LATERAL ESQUERDA:'].map(s=>prompt.indexOf(s));assert.ok(order.every((x,i)=>x>=0&&(!i||x>order[i-1])));
   for(const unwanted of ['frente.png','verso.png','lateral-esquerda.png','lateral-direita.png','composição quadrada','repetirá exatamente esta mesma imagem'])assert.ok(!prompt.includes(unwanted));
-  assert.ok(prompt.includes('fundo realmente transparente'));assert.ok(prompt.includes('Não inclua letras'));assert.ok(!prompt.includes('Nome privado'));
-  const ink=buildArtPrompt({...DEFAULTS,mainColor:'#998866',ink:true});assert.ok(ink.includes('fundo da caixa #ffffff'));
+  assert.ok(prompt.includes('escolha livremente uma paleta'));assert.ok(prompt.includes('seu próprio fundo'));assert.ok(prompt.includes('Não inclua letras'));assert.ok(!prompt.includes('Nome privado'));
+  assert.ok(!/#[0-9a-f]{6}/i.test(prompt));
 });
 test('panoramic art request preserves visor guidance and sizes short boxes correctly',()=>{
   const prompt=buildArtPrompt({height:3,width:12,depth:8,ease:0});assert.ok(prompt.includes('40,12 × 3,03 cm'));
@@ -311,5 +311,42 @@ test('fractional cuts and zoom export valid decimal PDF coordinates without scie
     const m=createModel({...panoramaConfig,panoramaCuts:[1/3,.5,5/6],imageTransforms},images),pdf=Buffer.from(createPDF(m)).toString('latin1');
     const streams=[...pdf.matchAll(/<< \/Length \d+ >>\nstream\n([\s\S]*?)endstream/g)].map(m=>m[1]);
     assert.equal(streams.length,m.pages.length);for(const s of streams)assert.equal(/\d(?:\.\d+)?[eE][-+]?\d|NaN|Infinity/.test(s),false);
+  }
+});
+
+test('image prompts choose their own palette regardless of preset colours or ink-saving settings',()=>{
+  const c={...DEFAULTS,description:'Jesus no jardim',artPromptStyle:'storybook'};
+  for(const face of ['all',...FACES.map(f=>f.id)]){
+    const base=buildArtPrompt(c,face);
+    for(const palette of [{mainColor:'#ff0000',detailColor:'#0000ff'},{mainColor:'#123456',detailColor:'#fedcba',ink:true},{mainColor:'invalid',detailColor:'invalid'}])assert.equal(buildArtPrompt({...c,...palette},face),base);
+    assert.ok(base.includes('paleta harmoniosa'));assert.ok(!/#[0-9a-f]{6}/i.test(base));assert.ok(!base.includes('fundo realmente transparente'));
+  }
+});
+test('every font can reach 120 pt when the face is large enough and projects retain the selection',()=>{
+  for(const {id}of TEXT_FONTS){
+    const c={textEnabled:true,textFont:id,textSize:120,texts:{front:'Liz'},height:19,width:18,depth:7},m=createModel(c);verifyPacking(m);
+    const layout=layoutText(m.W,m.H,m.config,'front');assert.ok(!layout.error);assert.ok(Math.abs(layout.size*72/25.4-120)<.01,id);
+    const parsed=parseProject(JSON.parse(JSON.stringify(projectData(m.config))));assert.equal(parsed.config.textFont,id);assert.equal(parsed.config.textSize,120);
+  }
+  assert.ok(createModel({textSize:121}).errors.some(e=>e.includes('tamanho da fonte')));
+  assert.ok(createModel({textSize:8}).errors.some(e=>e.includes('tamanho da fonte')));
+});
+test('large accented letters and italic overhangs remain inside each text area in every font',()=>{
+  for(const {id}of TEXT_FONTS)for(const textSize of [16,72,120])for(const textPosition of ['top','center','bottom']){
+    const config=normalizeConfig({textEnabled:true,textFont:id,textSize,textPosition,texts:{front:'ÁÉÍÓÚ Çãõ êg'},height:19,width:14,depth:7}),m=createModel(config);verifyPacking(m);
+    const l=layoutText(m.W,m.H,m.config,'front'),nodes=textNodes(m.W,m.H,m.config,'front'),glyphs=flatten(nodes).filter(n=>n.type==='group'&&n.children?.[0]?.textGlyph);
+    assert.ok(!l.error,id);let index=0;
+    for(const line of l.lines)for(const ch of line){const glyph=l.font.glyphs[ch];if(!glyph.commands.length)continue;const n=glyphs[index++],[a,b,c,d,e,f]=n.transform,[xmin,ymin,xmax,ymax]=glyph.bounds;
+      for(const [x,y]of [[xmin,ymin],[xmin,ymax],[xmax,ymin],[xmax,ymax]]){const px=a*x+c*y+e,py=b*x+d*y+f;assert.ok(px>=l.area.x-epsilon&&px<=l.area.x+l.area.w+epsilon,id+' width');assert.ok(py>=l.area.y-epsilon&&py<=l.area.y+l.area.h+epsilon,id+' height');}
+    }
+    assert.equal(index,glyphs.length);
+  }
+});
+test('large requested sizes adapt to visor frames while keeping lettering outside the aperture',()=>{
+  for(const {id}of TEXT_FONTS){
+    const m=createModel({textEnabled:true,textFont:id,textSize:120,texts:{front:'Déborah'},window:true,windows:['front']});verifyPacking(m);
+    const l=layoutText(m.W,m.H,m.config,'front'),v=windowGeometry(m.W,m.H,m.config);
+    assert.ok(l.size*72/25.4<120);assert.ok(l.area.y+l.area.h<=v.y||l.area.y>=v.y+v.h);
+    assert.ok(createPDF(m).length>1000);
   }
 });

@@ -1,4 +1,4 @@
-import { DEFAULTS, THEMES, LIDS, FACES, PANORAMA_ORDER, TEXT_FONTS, ART_STYLES, buildArtPrompt, panoramaLayout, panoramaPlacement, movePanoramaCut, fontSampleSVG, normalizeConfig, projectData, parseProject, createModel, resolveTheme, faceSVG, nodesToSVG, artNodes, pageSVG, createPDF, windowGeometry } from './engine.js';
+import { DEFAULTS, THEMES, LIDS, FACES, PANORAMA_ORDER, TEXT_FONTS, ART_STYLES, buildArtPrompt, layoutText, panoramaLayout, panoramaPlacement, movePanoramaCut, fontSampleSVG, normalizeConfig, projectData, parseProject, createModel, resolveTheme, faceSVG, nodesToSVG, artNodes, pageSVG, createPDF, windowGeometry } from './engine.js';
 
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const htmlEscape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -283,6 +283,10 @@ function renderTextControls(){
 }
 function renderTextSettings(){
   $('#text-settings').hidden=!state.textEnabled;$('#text-size-value').textContent=state.textSize+' pt';
+  const adjusted=[];
+  if(state.textEnabled&&model?.W&&model?.H)for(const face of FACES){const width=['front','back'].includes(face.id)?model.W:model.D,l=layoutText(width,model.H,state,face.id);if(l&&!l.error&&l.size*72/25.4<state.textSize-.1)adjusted.push(face.name.toLowerCase()+' '+(l.size*72/25.4).toLocaleString('pt-BR',{maximumFractionDigits:1})+' pt');}
+  $('#text-fit-note').hidden=!adjusted.length;$('#text-fit-note').textContent=adjusted.length?'Para caber no espaço disponível: '+adjusted.join(' · ')+'. Encurte o texto ou amplie a área para usar o tamanho escolhido.':'';
+
   $$('[data-font]').forEach(b=>{const on=b.dataset.font===state.textFont;b.classList.toggle('selected',on);b.setAttribute('aria-pressed',String(on));});
 }
 $('#font-options').addEventListener('click',e=>{const b=e.target.closest('[data-font]');if(!b)return;state.textFont=b.dataset.font;update();});

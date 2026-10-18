@@ -1,5 +1,15 @@
-Dobra vector font subsets derived from DejaVu fonts.
+Dobra vector font subsets - modified versions for Dobra Ateliê.
 
+Changes: glyph subsets listed in scripts/prepare-fonts.py; metrics normalized to
+1000 units; outlines rounded to 0.1 unit; glyph bounds added; missing symbols
+fall back to DejaVu Sans. The Delicada style applies a synthetic slant.
+The upstream authors do not maintain or support these modified subsets.
+Generated outlines are distributed directly as readable JavaScript in src/fonts.js
+and in the self-contained HTML build, with these notices embedded.
+
+DejaVu sources: https://dejavu-fonts.github.io/
+DejaVu derivatives: Clássica, Moderna, Delicada, Marcante, Clássica forte,
+Máquina de escrever, Máquina inclinada, Máquina forte; fallback symbols.
 Copyright: Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved. 
  Bitstream Vera is a trademark of Bitstream, Inc.
  DejaVu changes are in public domain.
@@ -44,4 +54,43 @@ License: bitstream-vera
  without prior written authorization from the Gnome Foundation or Bitstream
  Inc., respectively. For further information, contact: fonts at gnome dot
  org.
+
+Latin Modern Family, version 2.005 (2021).
+Copyright 2003-2021 B. Jackowski and J.M. Nowacki, on behalf of TeX Users Groups.
+Design based on Computer Modern by Donald E. Knuth.
+Original unmodified distribution: https://ctan.org/pkg/lm
+and http://www.gust.org.pl/projects/e-foundry/latin-modern/
+Derived subsets: Elegante (lmroman10-italic.otf), Compacta
+(lmsansdemicond10-regular.otf), Editorial (lmromancaps10-regular.otf),
+Artística (lmromandunh10-regular.otf). The vector subsets are renamed Dobra.
+GUST Font License 1.0 / LPPL 1.3c or later; full LPPL in FONT-LPPL.tex.
+
+% This is version 1.0, dated 22 June 2009, of the GUST Font License.
+% (GUST is the Polish TeX Users Group, http://www.gust.org.pl)
+%
+% For the most recent version of this license see
+% http://www.gust.org.pl/fonts/licenses/GUST-FONT-LICENSE.txt
+% or
+% http://tug.org/fonts/licenses/GUST-FONT-LICENSE.txt
+%
+% This work may be distributed and/or modified under the conditions
+% of the LaTeX Project Public License, either version 1.3c of this
+% license or (at your option) any later version.
+%
+% Please also observe the following clause:
+% 1) it is requested, but not legally required, that derived works be
+%    distributed only after changing the names of the fonts comprising this
+%    work and given in an accompanying "manifest", and that the
+%    files comprising the Work, as listed in the manifest, also be given
+%    new names. Any exceptions to this request are also given in the
+%    manifest.
+%
+%    We recommend the manifest be given in a separate file named
+%    MANIFEST-<fontid>.txt, where <fontid> is some unique identification
+%    of the font family. If a separate "readme" file accompanies the Work,
+%    we recommend a name of the form README-<fontid>.txt.
+%
+% The latest version of the LaTeX Project Public License is in
+% http://www.latex-project.org/lppl.txt and version 1.3c or later
+% is part of all distributions of LaTeX version 2006/05/20 or later.
 

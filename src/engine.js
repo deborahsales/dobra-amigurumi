@@ -107,7 +107,7 @@ export function validateConfig(input) {
     if (!Number.isFinite(Number(c[key])) || Number(c[key]) < 3 || Number(c[key]) > 60) errors.push(`A ${label} deve estar entre 3 e 60 cm.`);
     c[key] = Number(c[key]);
   }
-  for (const [key, min, max, label] of [['ease',0,3,'folga'],['thickness',.1,1,'espessura'],['margin',3,15,'margem'],['windowBorder',.6,3,'moldura do visor'],['textSize',9,30,'tamanho da fonte']]) {
+  for (const [key, min, max, label] of [['ease',0,3,'folga'],['thickness',.1,1,'espessura'],['margin',3,15,'margem'],['windowBorder',.6,3,'moldura do visor'],['textSize',9,120,'tamanho da fonte']]) {
     if (!Number.isFinite(Number(c[key])) || Number(c[key]) < min || Number(c[key]) > max) errors.push(`A ${label} está fora do intervalo permitido.`);
     c[key] = Number(c[key]);
   }
@@ -172,7 +172,7 @@ export function imagePlacement(w,h,config,face,image) {
   return {rect:transform(rect),clip};
 }
 export function buildArtPrompt(input={},target='all') {
-  const {config:c,errors}=validateConfig({...input,textEnabled:false});
+  const {config:c,errors}=validateConfig({...input,textEnabled:false,mainColor:DEFAULTS.mainColor,detailColor:DEFAULTS.detailColor,ink:false});
   if(errors.length)throw new Error('Confira as medidas, as cores e as opções da caixa antes de preparar o pedido.');
   if(target!=='all'&&!FACES.some(f=>f.id===target))throw new Error('Escolha uma face válida.');
   const theme=resolveTheme(c),style=ART_STYLES.find(s=>s.id===c.artPromptStyle),layout=panoramaLayout({...c,panoramaCuts:null});
@@ -193,8 +193,7 @@ export function buildArtPrompt(input={},target='all') {
     panoramic?'Crie uma única imagem panorâmica original com as quatro faces de uma caixa de amigurumi lado a lado, em uma única fileira, na ordem e nas larguras indicadas abaixo. Cada faixa terá sua própria composição; tudo deve estar dentro de um único arquivo.':'Crie uma ilustração original para decorar uma face de uma caixa de amigurumi.',
     `TEMA: ${requested}`,
     `ESTILO: ${style.instruction}`,
-    `PALETA: fundo da caixa ${theme.bg}; detalhes ${theme.ink}. Use a cor dos detalhes como referência principal para os desenhos e tons harmoniosos com esse fundo.`,
-    'A imagem será aplicada sobre o fundo da caixa pelo site. Entregue o desenho com fundo realmente transparente, sem bloco branco e sem pintar o fundo na imagem.',
+    'CORES E FUNDO: escolha livremente uma paleta harmoniosa e uma cor de fundo que combinem com o tema e o estilo. Crie a arte finalizada com seu próprio fundo e mantenha essa identidade visual em todas as faces.',
     ...(panoramic?[
       `TAMANHO TOTAL DA ARTE: ${format(layout.width/10)} × ${format(layout.height/10)} cm (largura total × altura). Proporção largura/altura: ${ratio}:1. Uma referência de resolução é ${Math.round(layout.width*scale)} × ${Math.round(layout.height*scale)} px. Preserve a proporção se usar outra resolução.`,
       'ORDEM DA ESQUERDA PARA A DIREITA: frente → lateral direita → verso → lateral esquerda. As faixas ocupam toda a altura. A largura total é a soma das quatro larguras, sem espaços, margens externas ou separadores. As medidas já incluem os ajustes da caixa; não acrescente folga.',
@@ -226,36 +225,43 @@ export function layoutText(w,h,config,face='front') {
   if(!config.textEnabled||!content)return null;
   const font=FONT_LIBRARY.find(f=>f.id===config.textFont)||FONT_LIBRARY[0];
   if([...content].some(char=>!font.glyphs[char]))return {error:'O texto contém caracteres indisponíveis na fonte.'};
-  const hasWindow=config.window&&config.windows.includes(face),padding=hasWindow?3:5;
-  const width=w-padding*2;
-  const height=hasWindow?config.windowBorder*10-2:Math.min(26,h*.24);
+  function measure(text){
+    let pen=0,minX=0,maxX=0,ascent=.85,descent=.2;
+    for(const char of text){
+      const glyph=font.glyphs[char],b=glyph.bounds||[0,-200,glyph.advance,850],slants=[font.shear*b[1],font.shear*b[3]];
+      minX=Math.min(minX,pen+b[0]+Math.min(...slants));maxX=Math.max(maxX,pen+b[2]+Math.max(...slants));
+      ascent=Math.max(ascent,b[3]/1000);descent=Math.max(descent,-b[1]/1000);pen+=glyph.advance;maxX=Math.max(maxX,pen);
+    }
+    return {width:(maxX-minX)/1000,minX:minX/1000,advance:pen/1000,ascent,descent};
+  }
+  const metrics=measure(content),lineEm=Math.max(1.25,metrics.ascent+metrics.descent+.12),requested=config.textSize*25.4/72;
+  const hasWindow=config.window&&config.windows.includes(face),padding=hasWindow?3:5,width=w-padding*2;
+  const height=hasWindow?config.windowBorder*10-2:Math.min(h-6,Math.max(Math.min(26,h*.24),requested*lineEm));
   const position=hasWindow&&config.textPosition==='center'?'bottom':config.textPosition;
-  const y=position==='top'?(hasWindow?1:3):position==='center'?(h-height)/2:h-height-(hasWindow?1:3);
-  const area={x:padding,y,w:width,h:height};
-  const advance=text=>[...text].reduce((sum,char)=>sum+font.glyphs[char].advance,0)/1000;
+  const y=position==='top'?(hasWindow?1:3):position==='center'?(h-height)/2:h-height-(hasWindow?1:3),area={x:padding,y,w:width,h:height};
+  const advance=text=>measure(text).advance;
   function wrap(size){
-    const lines=[];let current='';
-    const limit=width-2*size*(font.shear+.07);
+    const lines=[];let current='';const limit=width-size*.08;
     for(const word of content.replace(/\s+/g,' ').split(' ')){
       const candidate=current?current+' '+word:word;
-      if(advance(candidate)*size<=limit){current=candidate;continue;}
+      if(measure(candidate).width*size<=limit){current=candidate;continue;}
       if(current){lines.push(current);current='';}
-      for(const char of word){if(current&&advance(current+char)*size>limit){lines.push(current);current='';}current+=char;}
+      for(const char of word){if(current&&measure(current+char).width*size>limit){lines.push(current);current='';}current+=char;}
     }
     if(current)lines.push(current);return lines;
   }
-  let size=config.textSize*25.4/72,lines=wrap(size);
-  while((lines.length*size*1.25>height||lines.some(t=>advance(t)*size>width))&&size>2.2){size=Math.max(2.2,size*.9);lines=wrap(size);}
-  if(lines.length*size*1.25>height+.001||lines.some(t=>advance(t)*size>width+.001))return {error:'O texto não cabe na área disponível. Encurte a mensagem ou aumente a moldura do visor.'};
-  return {font,area,size,lines,lineHeight:size*1.25,advance};
+  let size=requested,lines=wrap(size);
+  while((lines.length*size*lineEm>height||lines.some(t=>measure(t).width*size>width))&&size>2.2){size=Math.max(2.2,size*.9);lines=wrap(size);}
+  if(lines.length*size*lineEm>height+.001||lines.some(t=>measure(t).width*size>width+.001))return {error:'O texto não cabe na área disponível. Encurte a mensagem ou aumente a moldura do visor.'};
+  return {font,area,size,lines,lineHeight:size*lineEm,advance,measure,ascent:metrics.ascent,descent:metrics.descent};
 }
 export function textNodes(w,h,config,face='front') {
   const layout=layoutText(w,h,config,face);if(!layout||layout.error)return [];
-  const {font,area,size,lines,lineHeight,advance}=layout,children=[],scale=size/1000,ink=resolveTheme(config).ink;
+  const {font,area,size,lines,lineHeight,measure,ascent,descent}=layout,children=[],scale=size/1000,ink=resolveTheme(config).ink;
   const top=area.y+(area.h-lines.length*lineHeight)/2;
   lines.forEach((text,index)=>{
-    let x=area.x+(area.w-advance(text)*size)/2;
-    const baseline=top+index*lineHeight+size*.96;
+    const metrics=measure(text);let x=area.x+(area.w-metrics.width*size)/2-metrics.minX*size;
+    const baseline=top+index*lineHeight+(lineHeight-(ascent+descent)*size)/2+ascent*size;
     for(const char of text){const glyph=font.glyphs[char];if(glyph.commands.length)children.push(group([pth(glyph.commands,ink,null,.18,{textGlyph:true})],[scale,0,font.shear*scale,-scale,x,baseline]));x+=glyph.advance*scale;}
   });
   return [group(children,[1,0,0,1,0,0],{clip:area,textContent:config.texts[face]})];
