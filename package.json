@@ -1,9 +1,9 @@
 {
   "name": "dobra-atelie",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "private": true,
   "type": "module",
-  "description": "Gerador de caixas para amigurumi com moldes vetoriais A4 em escala real.",
+  "description": "Caixas montáveis A4 e precificação de amigurumis com consumo de fio, mão de obra, materiais e lucro.",
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "start": "node scripts/serve.mjs",

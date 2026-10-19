@@ -1,9 +1,11 @@
 import { DEFAULTS, THEMES, LIDS, FACES, PANORAMA_ORDER, TEXT_FONTS, ART_STYLES, buildArtPrompt, layoutText, panoramaLayout, panoramaPlacement, movePanoramaCut, fontSampleSVG, normalizeConfig, projectData, parseProject, createModel, resolveTheme, faceSVG, nodesToSVG, artNodes, pageSVG, createPDF, windowGeometry } from './engine.js';
+import { initPricing } from './pricing-ui.js';
 
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const htmlEscape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const cm=v=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(v/10);
 const icons={
+  calculator:'<rect x="4" y="2" width="16" height="20" rx="3"/><path d="M8 6h8v4H8zM8 14h1m6 0h1m-8 4h1m6 0h1"/>',
   box:'<path d="m12 3 9 5v9l-9 5-9-5V8zM3 8l9 5 9-5M12 13v9M7.5 5.5l9 5"/>',
   ruler:'<path d="m4 15 11-11 5 5L9 20zM12 7l2 2m-5 1 2 2m-5 1 2 2"/>',
   layers:'<path d="m12 3 10 5-10 5L2 8zM2 12l10 5 10-5M2 16l10 5 10-5"/>',
@@ -360,3 +362,4 @@ $$('[data-close-dialog]').forEach(b=>b.addEventListener('click',()=>$('#help-dia
 $('#help-dialog').addEventListener('click',e=>{if(e.target===$('#help-dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
 $('#artPromptStyle').innerHTML=ART_STYLES.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
 renderTextControls();setForm();renderThemes();renderUploads();updateUpload();update();
+initPricing({toast,downloadBytes,onBoxShown:renderBox});

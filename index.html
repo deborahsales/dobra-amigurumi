@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#263f33">
-  <meta name="description" content="Crie caixas montáveis para amigurumi. Medidas personalizadas, temas, visores transparentes e moldes PDF em folhas A4, sem dividir as faces.">
-  <title>Dobra Ateliê — caixas feitas para o seu amigurumi</title>
+  <meta name="description" content="Crie caixas montáveis em A4 e calcule o preço dos seus amigurumis com tempo de trabalho, consumo de fio, materiais e margem de lucro.">
+  <title>Dobra Ateliê — caixas e precificação de amigurumis</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23263f33'/%3E%3Cpath d='m20 8 12 7v13l-12 7-12-7V15zM8 15l12 7 12-7M20 22v13M14 12l12 7' fill='none' stroke='%23f5f0e7' stroke-width='1.8' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./src/style.css">
 </head>
@@ -16,10 +16,12 @@
       <span class="brand-mark" data-icon="box"></span>
       <span class="brand-name">dobra<span>ATELIÊ DE CAIXAS</span></span>
     </a>
-    <nav aria-label="Principal"><a href="#configurador" class="nav-active">Criar uma caixa</a><button class="text-button" data-help>Guia de montagem <span data-icon="arrow-up-right"></span></button></nav>
+    <nav aria-label="Principal"><a href="#configurador" class="nav-active" data-tool-target="box">Caixas</a><a href="#precificacao" data-tool-target="pricing">Precificação</a><button class="text-button" data-help>Guia de montagem <span data-icon="arrow-up-right"></span></button></nav>
     <span class="header-note"><span class="small-star">✳</span> Feito para o feito à mão.</span>
   </header>
   <main>
+    <div class="tool-navigation" role="tablist" aria-label="Ferramentas do ateliê"><button type="button" id="tool-box" role="tab" aria-controls="box-tool" aria-selected="true" data-tool-target="box"><span data-icon="box"></span> Criar uma caixa</button><button type="button" id="tool-pricing" role="tab" aria-controls="pricing-tool" aria-selected="false" tabindex="-1" data-tool-target="pricing"><span data-icon="calculator"></span> Precificar amigurumi</button></div>
+    <div id="box-tool" role="tabpanel" aria-labelledby="tool-box">
     <section class="intro">
       <div><p class="eyebrow"><span></span> DO SEU ATELIÊ PARA O MUNDO</p><h1>Seu carinho.<br>Uma caixa <em>à altura.</em></h1><p class="intro-copy">Você cria o amigurumi. A gente ajuda a vestir o presente.<br class="desktop-break"> Transforme medidas e ideias em uma caixa feita para ele.</p></div>
       <div class="intro-side"><span class="intro-stamp" aria-hidden="true"><svg viewBox="0 0 100 100"><path d="M20 58c-5-28 16-39 30-15 15-25 39-9 29 13-6 12-19 22-29 30C37 76 25 69 20 58Z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m14 23 4 6m64-7-4 6M50 10v9M7 48h7m72 0h7" stroke="currentColor" stroke-width="1.5"/></svg><span>EMBALAR É CUIDAR</span></span><div class="benefits"><span><i data-icon="ruler"></i> Suas medidas</span><span><i data-icon="layers"></i> Faces inteiras em A4</span><span><i data-icon="lock"></i> Fundo de encaixe</span></div></div>
@@ -124,11 +126,47 @@
     </section>
 
     <section class="process"><div><p class="eyebrow">DO MOLDE AO PRESENTE</p><h2>Um pouquinho de papel.<br><em>Um montão de carinho.</em></h2></div><ol><li><span>01</span><div><h3>Imprima e recorte</h3><p>A4, tamanho real. As linhas contínuas mostram onde cortar.</p></div></li><li><span>02</span><div><h3>Vinque e una as faces</h3><p>Cole as abas pelo lado de dentro. A estampa fica do lado de fora.</p></div></li><li><span>03</span><div><h3>Encaixe e presenteie</h3><p>Feche o fundo com a lingueta, coloque sua peça e finalize a tampa.</p></div></li></ol></section>
+    </div>
+    <div id="pricing-tool" role="tabpanel" aria-labelledby="tool-pricing" hidden>
+      <section id="precificacao" class="intro pricing-intro"><div><p class="eyebrow"><span></span> FEITO À MÃO. VALORIZADO POR VOCÊ.</p><h1>Seu trabalho<br>tem <em>valor.</em></h1><p class="intro-copy">Transforme pontos, tempo e materiais em um preço para a sua peça.<br class="desktop-break"> O valor da sua hora faz parte do custo. O lucro vem além dele.</p></div><div class="pricing-intro-note"><span data-icon="calculator"></span><p>Um cálculo transparente,<br><strong>do primeiro ponto ao presente.</strong></p></div></section>
+      <section class="pricing-workspace" aria-label="Calculadora de preço de amigurumi">
+        <form id="pricing-form" class="pricing-form" novalidate>
+          <div class="pricing-form-title"><h2>Vamos precificar?</h2><button type="button" id="pricing-reset" class="icon-button" aria-label="Limpar os dados de precificação" title="Limpar cálculo"><span data-icon="reset"></span></button></div>
+          <label for="pricing-name" class="pricing-label">Nome da peça <span>opcional</span><input id="pricing-name" type="text" maxlength="80" placeholder="Ex.: coelhinho de vestido"></label>
+          <fieldset class="pricing-step"><legend><span class="step-number">01</span> Sua receita e seu tempo</legend><p>Use seu ritmo médio para o tipo de ponto desta receita.</p><div class="pricing-field-grid">
+            <label for="pricing-stitches">Quantidade de pontos<input id="pricing-stitches" type="text" inputmode="numeric" maxlength="20" placeholder="Ex.: 2.000" required aria-describedby="pricing-error-stitches"><span class="pricing-field-error" id="pricing-error-stitches" hidden></span></label>
+            <label for="pricing-stitchesPerMinute">Pontos por minuto<input id="pricing-stitchesPerMinute" type="text" inputmode="decimal" maxlength="20" placeholder="Ex.: 20" required aria-describedby="pricing-error-stitchesPerMinute"><span class="pricing-field-error" id="pricing-error-stitchesPerMinute" hidden></span></label>
+            <label for="pricing-hourlyRate">Sua hora de trabalho (R$)<input id="pricing-hourlyRate" type="text" inputmode="decimal" maxlength="20" placeholder="Ex.: 15,00" required aria-describedby="pricing-error-hourlyRate"><span class="pricing-field-error" id="pricing-error-hourlyRate" hidden></span></label>
+            <label for="pricing-extraMinutes">Montagem e acabamento (min)<input id="pricing-extraMinutes" type="text" inputmode="decimal" maxlength="20" value="0" aria-describedby="pricing-extra-help pricing-error-extraMinutes"><span class="pricing-field-error" id="pricing-error-extraMinutes" hidden></span></label>
+          </div><p class="pricing-help" id="pricing-extra-help">Some o tempo de costura, bordado e finalização. Ele é remunerado pelo mesmo valor da sua hora.</p></fieldset>
+          <fieldset class="pricing-step"><legend><span class="step-number">02</span> O fio da sua peça</legend><div class="pricing-field-grid">
+            <label for="pricing-cmPerTenStitches" class="pricing-wide">Fio usado em 10 pontos (cm)<input id="pricing-cmPerTenStitches" type="text" inputmode="decimal" maxlength="20" placeholder="Ex.: 40" required aria-describedby="pricing-yarn-help pricing-error-cmPerTenStitches"><span class="pricing-field-error" id="pricing-error-cmPerTenStitches" hidden></span></label>
+            <p class="pricing-help pricing-wide pricing-measure-help" id="pricing-yarn-help"><strong>Como medir:</strong> faça 10 pontos, desmanche a amostra e meça o fio utilizado. Informe esse comprimento de fio, não a largura do crochê pronto.</p>
+            <label for="pricing-yarnLength">Metragem do novelo (m)<input id="pricing-yarnLength" type="text" inputmode="decimal" maxlength="20" placeholder="Ex.: 160" required aria-describedby="pricing-error-yarnLength"><span class="pricing-field-error" id="pricing-error-yarnLength" hidden></span></label>
+            <label for="pricing-yarnPrice">Preço do novelo (R$)<input id="pricing-yarnPrice" type="text" inputmode="decimal" maxlength="20" placeholder="Ex.: 20,00" required aria-describedby="pricing-error-yarnPrice"><span class="pricing-field-error" id="pricing-error-yarnPrice" hidden></span></label>
+          </div><p class="pricing-help">O custo considera somente o fio consumido pela peça, proporcional à metragem do novelo.</p></fieldset>
+          <fieldset class="pricing-step"><legend><span class="step-number">03</span> Materiais e outros custos</legend><p>Informe quanto cada item custa para uma peça pronta.</p><div class="pricing-material-head" aria-hidden="true"><span>Material ou custo</span><span>Valor por peça</span></div><div id="pricing-materials"></div><button type="button" id="pricing-add-material" class="text-button pricing-add">+ Adicionar material ou custo</button><p class="pricing-help">Inclua enchimento, olhos, embalagem, etiquetas e a parcela de outros gastos do seu ateliê. Até 20 itens.</p></fieldset>
+          <fieldset class="pricing-step pricing-last"><legend><span class="step-number">04</span> Seu lucro</legend><label for="pricing-profitMargin" class="pricing-label">Margem sobre o preço de venda (%)<input id="pricing-profitMargin" type="text" inputmode="decimal" maxlength="20" placeholder="Ex.: 20" required aria-describedby="pricing-margin-help pricing-error-profitMargin"><span class="pricing-field-error" id="pricing-error-profitMargin" hidden></span></label><p class="pricing-help" id="pricing-margin-help">Uma margem de 20% significa que 20% do preço final será lucro, depois dos custos informados. Sua mão de obra já está remunerada no cálculo.</p></fieldset>
+          <div id="pricing-errors" class="pricing-errors" role="alert" tabindex="-1" hidden></div><button type="submit" class="primary-button pricing-calculate">Calcular orçamento <span data-icon="arrow-right"></span></button><p class="pricing-local-note">O resultado também atualiza ao preencher os dados. Seu cálculo é lembrado neste navegador.</p>
+        </form>
+        <aside class="pricing-summary" aria-label="Resultado da precificação">
+          <div id="pricing-empty" class="pricing-empty"><span data-icon="calculator"></span><p class="eyebrow">CADA PONTO CONTA</p><h2>O valor do seu<br><em>feito à mão.</em></h2><p>Preencha os dados ao lado para ver tempo, consumo de fio e preço sugerido para uma peça.</p><button type="button" id="pricing-example" class="text-button">Preencher um exemplo <span data-icon="arrow-right"></span></button></div>
+          <div id="pricing-results" hidden>
+            <div class="pricing-price-card"><span class="eyebrow">SEU ORÇAMENTO</span><h2 id="pricing-piece-name"></h2><span class="pricing-price-label">Preço sugerido</span><strong id="pricing-price" class="pricing-price"></strong><span class="pricing-unit">para 1 peça pronta</span></div>
+            <div class="pricing-summary-body"><div class="pricing-metrics"><div><span>Tempo estimado</span><strong id="pricing-total-time"></strong></div><div><span>Fio estimado</span><strong id="pricing-yarn-use"></strong></div></div><p class="pricing-time-split">Crochê: <strong id="pricing-crochet-time"></strong> · Acabamento: <strong id="pricing-finish-time"></strong></p><p id="pricing-yarn-share" class="pricing-yarn-share"></p>
+              <h3>Como o preço é formado</h3><dl class="pricing-costs"><div><dt>Mão de obra</dt><dd id="pricing-labor-total"></dd></div><div><dt>Fio consumido</dt><dd id="pricing-yarn-total"></dd></div><div><dt>Materiais e outros custos</dt><dd id="pricing-materials-total"></dd></div></dl><details id="pricing-material-detail" class="pricing-material-detail"><summary>Ver materiais</summary><ul id="pricing-material-breakdown"></ul></details><dl class="pricing-costs pricing-totals"><div><dt>Custo total de produção</dt><dd id="pricing-cost-total"></dd></div><div class="pricing-profit"><dt>Lucro estimado <small id="pricing-margin-total"></small></dt><dd id="pricing-profit-total"></dd></div></dl><details class="pricing-formula"><summary>Entender a conta</summary><p>Preço = custo total ÷ (1 − margem / 100)</p><p id="pricing-formula"></p><p>O preço é arredondado para cima ao centavo. O tempo exibido é arredondado ao minuto; o custo usa o tempo calculado antes desse arredondamento.</p></details><p class="pricing-estimate-note">Estimativa baseada no ritmo e no consumo informados. Inclua nos custos os gastos que se aplicam à sua produção.</p>
+            </div>
+          </div>
+          <div class="pricing-actions"><button type="button" id="pricing-download" class="primary-button" disabled><span data-icon="download"></span> Baixar orçamento PDF</button><button type="button" id="pricing-copy" class="text-button" disabled><span data-icon="copy"></span> Copiar cálculo</button><p>O PDF e o texto incluem custos, mão de obra e lucro.</p><label for="pricing-copy-fallback" class="sr-only">Cálculo para copiar</label><textarea id="pricing-copy-fallback" rows="8" readonly hidden></textarea></div>
+          <p id="pricing-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+        </aside>
+      </section>
+    </div>
   </main>
   <footer class="site-footer"><span class="brand-footer">dobra<span>ateliê</span></span><p>Para tudo que é feito com as mãos e com o coração.</p><button class="text-button" data-help>Cuidados e montagem <span data-icon="arrow-up-right"></span></button></footer>
   <div id="toast" role="status" class="toast" hidden></div>
   <dialog id="help-dialog" aria-labelledby="help-title"><div class="dialog-head"><span class="eyebrow">SEU GUIA DE BANCADA</span><button type="button" class="icon-button" data-close-dialog aria-label="Fechar guia"><span data-icon="close"></span></button></div><h2 id="help-title">Hora de dar forma<br><em>ao seu carinho.</em></h2><div id="assembly-guide"></div><button type="button" class="primary-button" data-close-dialog>Vamos criar <span data-icon="arrow-right"></span></button></dialog>
-  <noscript>Ative o JavaScript no navegador para criar a caixa, ver a prévia e gerar o molde PDF.</noscript>
+  <noscript>Ative o JavaScript no navegador para criar caixas, gerar PDFs e calcular preços de amigurumis.</noscript>
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>

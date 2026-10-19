@@ -1,6 +1,6 @@
 # Dobra Ateliê
 
-Site interativo em português para criar caixas montáveis de amigurumi. Recebe as medidas da peça e gera um PDF vetorial em A4, em escala real, preservando as faces inteiras.
+Site interativo em português para criar caixas montáveis e precificar amigurumis. O criador recebe as medidas da peça e gera um PDF vetorial em A4, em escala real, preservando as faces inteiras. A área de precificação estima tempo, consumo de fio, mão de obra, materiais e lucro, com um orçamento próprio em PDF.
 
 ## Executar
 
@@ -47,7 +47,32 @@ Importe **deborahsales/dobra-amigurumi** no painel **Add New → Project**. O ar
 
 Publique. Os próximos commits na branch de produção serão implantados pela integração Git da Vercel. Referências oficiais: [configuração de builds](https://vercel.com/docs/builds/configure-a-build), [vercel.json](https://vercel.com/docs/project-configuration/vercel-json) e [integração Git](https://vercel.com/docs/git).
 
-## O que o site faz
+## Precificação de amigurumis
+
+Abra **Precificar amigurumi**, no seletor de ferramentas, ou use `#precificacao` no endereço do site. O criador de caixas continua na primeira aba.
+
+O usuário informa os pontos totais da receita, seu ritmo em pontos por minuto, o comprimento de fio consumido por dez pontos, o valor da hora, a metragem e o preço do novelo, a margem de lucro e os demais custos por peça. A medida da amostra é o fio consumido: faça dez pontos, desmanche e meça esse fio. A largura de dez pontos de crochê não permite determinar o consumo de fio.
+
+É possível acrescentar minutos de montagem e acabamento e até vinte itens de material ou custo, como enchimento, olhos, embalagem, fitas e etiquetas. O cálculo considera uma peça pronta:
+
+| Parcela | Cálculo |
+| --- | --- |
+| Tempo de crochê, em minutos | Pontos da receita ÷ pontos por minuto |
+| Tempo total, em minutos | Tempo de crochê + montagem/acabamento |
+| Fio consumido, em metros | Pontos da receita × cm de fio por dez pontos ÷ 1.000 |
+| Mão de obra | Tempo total ÷ 60 × valor da hora |
+| Custo do fio | Metros consumidos ÷ metros do novelo × preço do novelo |
+| Custo de produção | Mão de obra + fio consumido + materiais e demais custos |
+| Preço sugerido | Custo de produção ÷ (1 − margem / 100) |
+| Lucro estimado | Preço sugerido − custo de produção |
+
+A margem é sobre o preço de venda. Por exemplo, custo de R$ 50,00 com margem de 20% resulta em preço de R$ 62,50 e lucro de R$ 12,50. O custo do fio é proporcional ao consumo, inclusive para frações de novelo. As parcelas monetárias são arredondadas ao centavo antes da soma; o preço final é arredondado para cima ao centavo. O tempo exibido é arredondado ao minuto para leitura, mas o custo utiliza o tempo original. A margem deve ser de zero até menos de 100%; pelo menos um custo positivo deve ser informado. Números com vírgula são aceitos, assim como contagens inteiras com separador de milhares.
+
+O resultado atualiza ao completar os campos, com validação das entradas, resumo dos custos, consumo, tempo e lucro. **Preencher um exemplo** demonstra o cálculo com dados identificados como exemplo. **Copiar cálculo** produz um texto com o detalhamento, e **Baixar orçamento PDF** gera um relatório vetorial A4 com paginação automática para listas extensas. Os dois formatos incluem os custos e o lucro; são uma composição de preço para o ateliê. O PDF usa as fontes incorporadas e avisa quando um nome contém um caractere indisponível.
+
+O rascunho da precificação fica no armazenamento local do navegador, separado das configurações e dos projetos de caixa. Não há envio dos valores para uma API nem necessidade de autenticação ou novos serviços. Limpar a precificação afeta somente esse rascunho. O orçamento não é incluído no molde da embalagem.
+
+## Criador de caixas
 
 - Medidas do amigurumi em centímetros, com folga opcional acrescentada a cada dimensão total.
 - Três tipos de tampa: embutir, separada e embutir com alça de linguetas.
@@ -111,9 +136,13 @@ src/style.css              Layout responsivo e prévia 3D em CSS
 src/engine.js              Geometria, temas, visores, planejamento A4, SVG e PDF
 src/fonts.js               Subconjuntos de fontes como contornos vetoriais
 src/app.js                 Interações, uploads e persistência local
+src/pricing.js             Consumo, mão de obra, materiais, margem e texto do orçamento
+src/pricing-pdf.js         Relatório de precificação A4 com paginação automática
+src/pricing-ui.js          Formulário, resumo, navegação e rascunho da precificação
 scripts/build.mjs          Compilação sem dependências para HTML independente
 scripts/serve.mjs          Servidor local de desenvolvimento
 tests/engine.test.mjs      Testes das regras de fabricação e exportação
+tests/pricing.test.mjs     Testes dos cálculos, validação, arredondamento e PDF do orçamento
 tests/fixtures/images.json Quatro imagens sintéticas para conferir cada face
 tests/fixtures/panorama.json Panorama sintético com faixas de larguras diferentes
 FONT-LICENSE.txt           Créditos e licenças dos subconjuntos de fontes
@@ -124,8 +153,8 @@ vercel.json               Configuração de deploy
 
 ## Verificação realizada
 
-Foram executados 37 testes automatizados de geometria, preservação de faces, limites A4, rotação sem escala, sobreposição, visores por face, posicionamento da trava, ausência de textos quando desligados, vinte temas, cores independentes, quatro imagens, uma arte repetida sem deformação, panorama com recortes proporcionais e manuais, zoom, deslocamento por face, isolamento de trechos, coordenadas decimais válidas no PDF, mudança de medidas, migração de projetos, doze fontes criativas com acentos, migração das fontes antigas nos três formatos de projeto, caracteres sem recorte em tamanho grande, fontes de até 120 pt e pedidos de arte independentes das cores selecionadas. PDFs das tampas e de modelos com artes, textos e visores foram abertos por um leitor PDF independente; as páginas A4 e a renderização foram conferidas. Na atualização do panorama, 48 amostras de cor renderizadas por um leitor independente confirmaram os trechos corretos, as larguras e a orientação nas três tampas, incluindo um visor. Na atualização dos controles, outros 23 pontos renderizados confirmaram os cortes manuais, o zoom, o deslocamento e as margens sem vazamento de faces vizinhas. Uma prova das doze fontes e caixas com textos a 120 pt e visores também foram renderizadas e inspecionadas. Os textos opcionais são contornos vetoriais; não usam fontes externas nem dependem das fontes instaladas no dispositivo.
+Foram executados 48 testes automatizados: 37 de fabricação, artes e textos e 11 de precificação. Eles cobrem geometria, preservação de faces, limites A4, rotação sem escala, sobreposição, visores por face, posicionamento da trava, ausência de textos quando desligados, vinte temas, cores independentes, quatro imagens, panorama com recortes proporcionais e manuais, zoom, deslocamento por face, migração de projetos, doze fontes criativas com acentos, limites de 120 pt e pedidos de arte independentes das cores selecionadas. A precificação foi conferida com valores conhecidos, margem sobre a venda, custo proporcional do fio, tempos de acabamento, entradas com vírgulas, centavos, margem zero, entradas inválidas e valores extremos, persistência independente e conteúdo do texto copiado. O relatório A4 foi verificado com listas de vinte materiais, paginação e limites dos contornos vetoriais. Três orçamentos (exemplo, valores fracionados e lista extensa em duas páginas) foram abertos por um leitor PDF independente, renderizados e inspecionados visualmente. Também foram auditadas as referências acessíveis, os identificadores HTML e a sintaxe dos módulos e do HTML compilado. Os testes anteriores dos moldes continuam passando.
 
 As fontes Dobra são subconjuntos modificados de Caveat, Patrick Hand, Kalam, Fredoka, Pacifico, Chewy, Bangers, Lilita One, Amatic SC, Baloo 2, Indie Flower e Architects Daughter, com DejaVu Sans para símbolos e caracteres adicionais. Cada família inclui seus próprios acentos portugueses. Créditos e licenças OFL, Apache e DejaVu estão completos em `FONT-LICENSE.txt` e incorporados ao HTML independente. `scripts/font-sources.json` fixa o commit e os hashes dos arquivos oficiais do repositório Google Fonts. `python scripts/prepare-fonts.py` permite regenerá-los com FontTools, DejaVu Sans e acesso aos arquivos oficiais; os downloads são conferidos e guardados em `.font-cache/`. Essa ferramenta de manutenção não é executada no build e não adiciona dependências Python ao deploy. Os contornos gerados já estão no repositório.
 
-Não foi executada uma sessão de navegador real neste ambiente. Verifique a prévia 3D, envio de imagens e downloads em Chrome/Safari, incluindo um celular, antes de colocar o site em produção.
+Uma sessão de navegador real não esteve disponível neste ambiente. A verificação desta atualização incluiu os cálculos, as referências acessíveis do HTML, a sintaxe do build e a renderização independente dos PDFs. A navegação visual e os downloads ainda precisam ser conferidos em um navegador, inclusive no celular.
